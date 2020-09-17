@@ -57,14 +57,21 @@ def total_dist(itinerary):
     return sum(dist for (_, dist) in itinerary)
 
 
+def batched(num):
+
+    def _batched(func):
+
+        def _wrapped(total):
+            batches = partition_all(num, total)
+            combined = mapcat(func, batches)
+            return list(combined)
+
+        return _wrapped
+    return _batched
+
+
+@batched(100)
 def systems_get(systems):
-    """Get data for systems."""
-    batches = partition_all(100, systems)
-    combined = mapcat(_systems_get, batches)
-    return list(combined)
-
-
-def _systems_get(systems):
     """Get a batch of systems, up to 100 (per the API)."""
     system_dict = {"systemName[]": systems}
     r = requests.get(
