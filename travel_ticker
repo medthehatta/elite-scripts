@@ -1,0 +1,29 @@
+#!/bin/bash
+filename="$1"
+
+
+tmp="$(mktemp -d)"
+trap "rm -rf '$tmp'" EXIT
+
+
+get () {
+    local sysfile="$1"
+    sed -e 's/#.*//g' "$sysfile" > "$tmp/remaining"
+    local current="$(/work/current_system)"
+    /work/travel.py "$current" "$tmp/remaining" > "$tmp/out"
+    jq -Mrc -n --arg current "$current" '["START", $current]'
+    echo
+    jq -Mrc '.itinerary[]' "$tmp/out"
+    echo
+    local total="$(jq -Mrc '.total' "$tmp/out")"
+    jq -Mrc -n --arg total "$total" '["TOTAL", $total]'
+}
+
+
+[ -n "$filename" ] || { echo "Need system name file."; exit 1; }
+
+while true; do
+    clear
+    get "$filename"
+    sleep 10
+done

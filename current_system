@@ -1,0 +1,2 @@
+#!/bin/bash
+jq -Mrc '.StarSystem | select(. != null)' "$(ls /work/Saved\ Games/Frontier\ Developments/Elite\ Dangerous/Journal*.log | sort | tail -n1)" | tail -n1 
