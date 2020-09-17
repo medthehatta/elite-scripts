@@ -11,7 +11,7 @@ get () {
     local sysfile="$1"
     sed -e 's/#.*//g' "$sysfile" > "$tmp/remaining"
     local current="$("$prefix/current_system")"
-    /work/travel.py "$current" "$tmp/remaining" > "$tmp/out"
+    "$prefix/travel.py" "$current" "$tmp/remaining" > "$tmp/out"
     jq -Mrc -n --arg current "$current" '["START", $current]'
     echo
     jq -Mrc '.itinerary[]' "$tmp/out"
