@@ -3,11 +3,44 @@
 
 import json
 import math
+import pickle
 import requests
+import os
 from itertools import permutations
 from cytoolz import partition_all
 from cytoolz import mapcat
 from cytoolz import sliding_window
+
+
+def cachefile_for(system):
+    """Return the presumed cache file location for the `system`."""
+    cache_prefix = "/tmp/elite-cache"
+    os.makedirs(cache_prefix)
+    return os.path.join(cache_prefix, system.lower()[:2])
+
+
+def retrieve_from_cache(system, data_key=None):
+    """Retrieve system data from cache."""
+    try:
+        with open(cachefile_for(system), "rb") as f:
+            data = pickle.load(f)
+            if data_key:
+                return data[system][data_key]
+            else:
+                return data[system]
+    except OSError:
+        raise LookupError(system)
+
+
+def write_to_cache(system, data_key, data):
+    """Write system data to the cache."""
+    shard = cachefile_for(system)
+    with open(shard, "rb") as f:
+        existing = pickle.load(f)
+        updated = {**existing, system: {data_key: data}}
+    with open(shard, "wb") as f:
+        pickle.dump(updated, f)
+    return updated
 
 
 def greedy_path(positions, initial):
@@ -58,6 +91,7 @@ def total_dist(itinerary):
 
 
 def batched(num):
+    """Run a function over its list argument in batches of size `num`."""
 
     def _batched(func):
 
@@ -77,6 +111,26 @@ def systems_get(systems):
     r = requests.get(
         "https://www.edsm.net/api-v1/systems",
         params={"showCoordinates": 1, **system_dict},
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def systems_in_sphere(current_system, radius=50):
+    """Get systems in a sphere of radius 100."""
+    r = requests.get(
+        "https://www.edsm.net/api-v1/sphere-systems",
+        params={"systemName": current_system, "radius": radius},
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def stations_in_system(system):
+    """Get the stations in a given system."""
+    r = requests.get(
+        "https://www.edsm.net/api-system-v1/stations",
+        params={"systemName": system},
     )
     r.raise_for_status()
     return r.json()
