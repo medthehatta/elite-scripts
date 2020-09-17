@@ -1,4 +1,5 @@
 #!/bin/bash
+prefix="$(dirname -- "$(readlink -f -- "$0")")"
 filename="$1"
 
 
@@ -9,7 +10,7 @@ trap "rm -rf '$tmp'" EXIT
 get () {
     local sysfile="$1"
     sed -e 's/#.*//g' "$sysfile" > "$tmp/remaining"
-    local current="$(/work/current_system)"
+    local current="$("$prefix/current_system")"
     /work/travel.py "$current" "$tmp/remaining" > "$tmp/out"
     jq -Mrc -n --arg current "$current" '["START", $current]'
     echo
