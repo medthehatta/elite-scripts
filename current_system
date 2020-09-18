@@ -1,2 +1,2 @@
 #!/bin/bash
-jq -Mrc '.StarSystem | select(. != null)' "$(ls /work/Saved\ Games/Frontier\ Developments/Elite\ Dangerous/Journal*.log | sort | tail -n1)" | tail -n1 
+curl -w"\n" -F apiKey=1e6fc89e41d08b4e0f4386cf159f9015f25adc0d -F commanderName=mahimahimed https://www.edsm.net/api-logs-v1/get-position | jq '.system'
