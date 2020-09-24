@@ -8,6 +8,15 @@ from cytoolz import partition_all
 from cytoolz import mapcat
 
 
+def system_coords(systems):
+    """Return a dict of system name to coords."""
+    system_data = systems_get(systems)
+    return {
+        sys["name"]: sys["coords"]
+        for sys in system_data
+    }
+
+
 def systems_get(systems):
     """Get data for systems."""
     batches = partition_all(100, systems)
