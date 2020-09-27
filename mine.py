@@ -37,7 +37,7 @@ aspx = dict(
     avg_sc_speed_vs_c=13,
     docking_seconds=90,
     tons=70,
-    min_profit_per_hour=60e6,
+    min_profit_per_hour=120e6,
     seconds_per_ton=60,
 )
 
