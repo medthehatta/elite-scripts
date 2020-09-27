@@ -1,3 +1,5 @@
 requests
 cytoolz
 diskcache
+beautifulsoup4
+retrying
