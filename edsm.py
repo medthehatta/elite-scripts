@@ -54,10 +54,14 @@ _get = cache.memoize()(_get_raw)
 @batched(100)
 def systems_get(systems):
     """Get a batch of systems, up to 100 (per the API)."""
-    system_dict = {"systemName[]": systems}
     return _get(
         "https://www.edsm.net/api-v1/systems",
-        params={"showCoordinates": 1, **system_dict},
+        params={
+            "systemName[]": systems,
+            "showInformation": 1,
+            "showPrimaryStar": 1,
+            "showCoordinates": 1,
+        },
     )
 
 
@@ -65,7 +69,13 @@ def systems_in_sphere(current_system, radius=50):
     """Get systems in a sphere of radius 100."""
     return _get(
         "https://www.edsm.net/api-v1/sphere-systems",
-        params={"systemName": current_system, "radius": radius},
+        params={
+            "systemName": current_system,
+            "radius": radius,
+            "showInformation": 1,
+            "showPrimaryStar": 1,
+            "showCoordinates": 1,
+        },
     )
 
 
@@ -85,6 +95,14 @@ def stations_in_system(system):
         for station in stations.get("stations", [])
         if station["type"] != "Fleet Carrier"
     ]
+
+
+def bodies_in_system(system):
+    """Get bodies in a given system."""
+    return _get(
+        "https://www.edsm.net/api-system-v1/bodies",
+        params={"systemName": system},
+    )
 
 
 @cache.memoize(expire=3600)

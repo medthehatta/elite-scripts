@@ -102,14 +102,6 @@ def systems_in_sphere(current_system, radius=50):
     )
 
 
-def bodies_in_system(system):
-    """Get bodies in a given system."""
-    return _get(
-        "https://www.edsm.net/api-system-v1/bodies",
-        params={"systemName": system},
-    )
-
-
 def stations_in_system(system):
     """Get the stations in a given system."""
     return _get(
