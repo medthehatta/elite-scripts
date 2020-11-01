@@ -38,7 +38,8 @@ def _toelapsed(s):
             mult = 1
         else:
             raise ValueError(f"Unknown unit: {unit}")
-        return _tonumeric(num)*mult
+        seconds = _tonumeric(num)*mult
+        return (datetime.datetime.now() - datetime.timedelta(seconds=seconds).isoformat()
     else:
         return None
 
@@ -84,12 +85,12 @@ def commodity_mapping():
 def commodity_buy(id_):
     url = f"https://eddb.io/commodity/{id_}"
     table_id = "table-stations-min-buy"
-    headers = ["Station", "System", "Price", "Compare", "Supply", "Pad", "Time"]
+    headers = ["station", "system", "buyPrice", "Compare", "stock", "Pad", "time"]
     transforms = {
         field: _tonumeric
-        for field in ["Price", "Supply"]
+        for field in ["buyPrice", "stock"]
     }
-    transforms["Time"] = _toelapsed
+    transforms["time"] = _toelapsed
 
     r = requests.get(url)
     r.raise_for_status()
@@ -100,12 +101,12 @@ def commodity_buy(id_):
 def commodity_sell(id_):
     url = f"https://eddb.io/commodity/{id_}"
     table_id = "table-stations-max-sell"
-    headers = ["Station", "System", "Price", "Compare", "Demand", "Pad", "Time"]
+    headers = ["station", "system", "sellPrice", "Compare", "demand", "Pad", "time"]
     transforms = {
         field: _tonumeric
-        for field in ["Price", "Demand"]
+        for field in ["sellPrice", "demand"]
     }
-    transforms["Time"] = _toelapsed
+    transforms["time"] = _toelapsed
 
     r = requests.get(url)
     r.raise_for_status()

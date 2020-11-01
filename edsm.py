@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 
+import datetime
 import itertools
 import json
 import math
@@ -25,21 +26,23 @@ def batched(num):
     """Run a function over its list argument in batches of size `num`."""
 
     def _batched(func):
-
         def _wrapped(total):
             batches = partition_all(num, total)
             combined = mapcat(func, batches)
             return list(combined)
 
         return _wrapped
+
     return _batched
 
 
 @retry(
     stop_max_attempt_number=3,
     wait_exponential_multiplier=8000,
+    wait_exponential_max=32000,
 )
 def _get_raw(url, params):
+    print(f"GET {url} ({params})...")
     r = requests.get(url, params=params)
     r.raise_for_status()
     return r.json()
@@ -78,7 +81,8 @@ def stations_in_system(system):
         params={"systemName": system},
     )
     return [
-        station for station in stations.get("stations", [])
+        station
+        for station in stations.get("stations", [])
         if station["type"] != "Fleet Carrier"
     ]
 
@@ -92,28 +96,29 @@ def market_in_station(system, station):
     )
 
 
-def markets_in_sphere(center_system, radius=10):
-    """Get all the market data in a sphere."""
-    for system in systems_in_sphere(center_system, radius):
-        stations = stations_in_system(system["name"])
-        for station in stations:
-            yield market_in_station(system["name"], station["name"])
-
-
 def commodity_from_system(system, commodity):
-    stations = stations_in_system(system["name"])
+    stations = stations_in_system(system)
     markets = (
-        market_in_station(system["name"], station["name"])
+        {
+            "system": system,
+            "station": station,
+            "market": market_in_station(system, station["name"]),
+        }
         for station in stations
     )
     return itertools.chain.from_iterable(
         [
-            merge(com, {"system": market["name"], "station": market["sName"]})
-            for com in market.get("commodities", []) or []
-            if (
-                com["name"].lower() == commodity.lower() or
-                com["id"].lower() == commodity.lower()
+            merge(
+                com,
+                {
+                    "timestamp": datetime.datetime.now().isoformat(),
+                    "system": market["system"],
+                    "station": market["station"]["name"],
+                    "stationType": market["station"]["type"],
+                },
             )
+            for com in market["market"].get("commodities", []) or []
+            if commodity.lower() in (com["name"].lower(), com["id"].lower())
         ]
         for market in markets
     )
@@ -121,22 +126,20 @@ def commodity_from_system(system, commodity):
 
 def commodity_in_sphere(center_system, commodity, radius=10):
     systems = systems_in_sphere(center_system, radius)
+    system_names = [system["name"] for system in systems]
     this_commodity_from_system = partial(commodity_from_system, commodity=commodity)
     with ThreadPoolExecutor(max_workers=16) as exe:
-        commodities_batched = exe.map(this_commodity_from_system, systems)
+        commodities_batched = exe.map(this_commodity_from_system, system_names)
         return list(itertools.chain.from_iterable(commodities_batched))
 
 
 def system_coords(systems):
     """Return a dict of system name to coords."""
     system_data = systems_get(systems)
-    return {
-        sys["name"]: sys["coords"]
-        for sys in system_data
-    }
+    return {sys["name"]: sys["coords"] for sys in system_data}
 
 
 def distance(pt2, pt1):
     """Compute the distance between coord dicts with x,y,z keys."""
     displ = [pt2[i] - pt1[i] for i in ["x", "y", "z"]]
-    return math.sqrt(sum(p**2 for p in displ))
+    return math.sqrt(sum(p ** 2 for p in displ))
