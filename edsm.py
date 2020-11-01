@@ -66,11 +66,27 @@ def systems_get(systems):
 
 
 def systems_in_sphere(current_system, radius=50):
-    """Get systems in a sphere of radius 100."""
+    """Get systems in a sphere of radius 50 of another system."""
     return _get(
         "https://www.edsm.net/api-v1/sphere-systems",
         params={
             "systemName": current_system,
+            "radius": radius,
+            "showInformation": 1,
+            "showPrimaryStar": 1,
+            "showCoordinates": 1,
+        },
+    )
+
+
+def systems_in_radius_of(coords, radius=50):
+    """Get systems in a sphere of radius 50 of a coordinate tuple."""
+    return _get(
+        "https://www.edsm.net/api-v1/sphere-systems",
+        params={
+            "x": coords[0],
+            "y": coords[1],
+            "z": coords[2],
             "radius": radius,
             "showInformation": 1,
             "showPrimaryStar": 1,
@@ -105,9 +121,10 @@ def bodies_in_system(system):
     )
 
 
+@cache.memoize(expire=1000)
 def traffic_in_system(system):
     """Get traffic in a given system."""
-    return _get(
+    return _get_raw(
         "https://www.edsm.net/api-system-v1/traffic",
         params={"systemName": system},
     )
