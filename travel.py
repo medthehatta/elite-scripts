@@ -98,7 +98,7 @@ def systems_in_sphere(current_system, radius=50):
     """Get systems in a sphere of radius 100."""
     return _get(
         "https://www.edsm.net/api-v1/sphere-systems",
-        params={"systemName": current_system, "radius": radius},
+        params={"systemName": current_system, "radius": radius, "showInformation": 1, "showPrimaryStar": 1, "showCoordinates": 1},
     )
 
 
