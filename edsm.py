@@ -105,6 +105,14 @@ def bodies_in_system(system):
     )
 
 
+def traffic_in_system(system):
+    """Get traffic in a given system."""
+    return _get(
+        "https://www.edsm.net/api-system-v1/traffic",
+        params={"systemName": system},
+    )
+
+
 @cache.memoize(expire=3600)
 def market_in_station(system, station):
     """Get the market data for a station in a system."""
