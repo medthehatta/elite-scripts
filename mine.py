@@ -99,10 +99,6 @@ def mining_loops(mine_data, sell_data):
         if sell["System"] not in systems:
             print(f"ERROR: Unable to find system {sell['System']}, skipping.")
             continue
-        notes = (
-            f"{mine['Extras']}; {mine['Confirmation']}; "
-            f"{mine['Notes']}; {mine['Notes2']}; {mine['Notes3']}"
-        ).replace(" ;","").strip().rstrip(";")
         price = int(sell["Sell"].replace(",",""))
         dist = distance(
             systems[mine["System"]],
@@ -117,7 +113,7 @@ def mining_loops(mine_data, sell_data):
         result = {
             "mine": {
                 "system": mine["System"],
-                "ring": mine["Ring"],
+                #"ring": mine["Ring"],
                 "notes": notes,
                 "dist": mine_dist,
             },

@@ -1,8 +1,10 @@
 import numpy as np
 import edsm
+import eddb_tables as et
 from importlib import reload
 from cytoolz import get
 from concurrent.futures import ThreadPoolExecutor
+import json
 
 
 def coords(system_info):
@@ -36,3 +38,27 @@ def bodies_for(systems):
     with ThreadPoolExecutor(max_workers=6) as exe:
         results = list(exe.map(edsm.bodies_in_system, names))
     return results
+
+
+def best_sell_price_in_system(commodity, system):
+    try:
+        return max(
+            (x["sellPrice"], x["station"])
+            for x in edsm.commodity_from_system(system, commodity)
+        )
+    except ValueError:
+        return (-1, "")
+
+
+def sell_near_system(location, radius=30):
+    locations = json.load(open("mining_locations.json"))
+    nearby_systems = edsm.systems_in_sphere(location, radius)
+    commodities = next(loc["items"] for loc in locations if loc["name"].lower() == location.lower())
+    for commodity in commodities:
+        for system in nearby_systems:
+            (price, station) = best_sell_price_in_system(commodity, system["name"])
+            if price != -1:
+                yield (price, commodity, station, system)
+
+
+ml = json.load(open("mining_locations.json"))

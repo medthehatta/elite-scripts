@@ -3,8 +3,10 @@
 
 import sys
 import re
+import json
 
 
+import datetime
 import requests
 import bs4
 
@@ -39,7 +41,7 @@ def _toelapsed(s):
         else:
             raise ValueError(f"Unknown unit: {unit}")
         seconds = _tonumeric(num)*mult
-        return (datetime.datetime.now() - datetime.timedelta(seconds=seconds).isoformat()
+        return (datetime.datetime.now() - datetime.timedelta(seconds=seconds).isoformat())
     else:
         return None
 
@@ -112,3 +114,7 @@ def commodity_sell(id_):
     r.raise_for_status()
     table = _tables_from_html(r.text, id_=table_id)
     return _parse_table(table, headers, transforms)
+
+
+def id_for(name):
+    return json.load(open("eddb-commodities.json"))[name.lower()]
