@@ -237,8 +237,8 @@ def main():
     parser.add_argument("-P", "--pretty", action="store_true")
     parser.add_argument("-s", "--system", required=True)
     parser.add_argument("-r", "--radius", type=int, default=30)
-    parser.add_argument("-d", "--demand", "--min-demand", default=100)
-    parser.add_argument("-p", "--price", "--min-price", default=100000)
+    parser.add_argument("-d", "--demand", "--min-demand", type=int, default=100)
+    parser.add_argument("-p", "--price", "--min-price", type=int, default=100000)
     parser.add_argument(
         "cargo",
         type=argparse.FileType("r"),

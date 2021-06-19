@@ -9,6 +9,7 @@ import os
 import pickle
 from concurrent.futures import ThreadPoolExecutor
 from pprint import pprint
+import threading
 
 import requests
 from cytoolz import mapcat
@@ -18,6 +19,7 @@ from cytoolz import partition_all
 from cytoolz import sliding_window
 from diskcache import Cache
 from retrying import retry
+
 
 cache = Cache("edsm-cache")
 
@@ -129,13 +131,23 @@ def traffic_in_system(system):
     )
 
 
-@cache.memoize(expire=3600)
 def market_in_station(system, station):
     """Get the market data for a station in a system."""
-    return _get_raw(
-        "https://www.edsm.net/api-system-v1/stations/market",
-        params={"systemName": system, "stationName": station},
-    )
+    # We manually check to see if we have invalidated the cache; we don't use
+    # the native diskcache invalidation because this cache gets invalidated by
+    # receiving an EDDN event.
+    with Cache("edsm-dirty") as dirty:
+        cache_key = f"{system}{station}"
+        if cache_key in dirty:
+            print(f"Refreshing dirty market cache for {station} @ {system}")
+            result = _get_raw(
+                "https://www.edsm.net/api-system-v1/stations/market",
+                params={"systemName": system, "stationName": station},
+            )
+            cache.set(cache_key, result)
+            dirty.delete(cache_key)
+        else:
+            return cache.get(cache_key)
 
 
 def markets_in_system(system):
