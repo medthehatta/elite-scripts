@@ -37,7 +37,7 @@ aspx = dict(
     avg_sc_speed_vs_c=13,
     docking_seconds=90,
     tons=70,
-    min_profit_per_hour=120e6,
+    min_profit_per_hour=20e6,
     seconds_per_ton=60,
 )
 
@@ -56,7 +56,7 @@ def _loop_sort_key(config):
 
     def _lsk(loop):
         jump_seconds_out = loop["dist"] / ly_per_jump_unladen * seconds_per_jump
-        jump_seconds_back = loop["dist"] / ly_per_jump_laden* seconds_per_jump
+        jump_seconds_back = loop["dist"] / ly_per_jump_laden * seconds_per_jump
         to_ring_seconds = loop["mine"]["dist"] / avg_sc_speed_vs_c
         to_sell_seconds = loop["sell"]["dist"] / avg_sc_speed_vs_c
 
@@ -108,6 +108,7 @@ def mining_loops(mine_data, sell_data):
         station_dist = next(
             station["distanceToArrival"]
             for station in stations
+            if station["name"] == sell["Station"]
         )
         mine_dist = int(mine["Dist ls"].replace(",",""))
         result = {

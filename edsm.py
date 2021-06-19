@@ -38,8 +38,7 @@ def batched(num):
 
 @retry(
     stop_max_attempt_number=3,
-    wait_exponential_multiplier=8000,
-    wait_exponential_max=32000,
+    wait_exponential_multiplier=10000,
 )
 def _get_raw(url, params):
     print(f"GET {url} ({params})...")
@@ -137,6 +136,22 @@ def market_in_station(system, station):
         "https://www.edsm.net/api-system-v1/stations/market",
         params={"systemName": system, "stationName": station},
     )
+
+
+def markets_in_system(system):
+    """Get all the market data for a system."""
+    disallowed_types = [
+        "Odyssey Settlement",
+        "Fleet Carrier",
+    ]
+    return [
+        {
+            "market": market_in_station(system, station["name"]),
+            "station": station,
+        }
+        for station in stations_in_system(system)
+        if station["type"] not in disallowed_types
+    ]
 
 
 def commodity_from_system(system, commodity):
