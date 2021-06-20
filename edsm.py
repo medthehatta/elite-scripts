@@ -80,6 +80,23 @@ def systems_in_sphere(current_system, radius=50):
     )
 
 
+def systems_in_cube_at(coords, edge=20):
+    """Get systems in a cube of the given edge length at coords."""
+    (x, y, z) = coords
+    return _get(
+        "https://www.edsm.net/api-v1/cube-systems",
+        params={
+            "x": x,
+            "y": y,
+            "z": z,
+            "size": edge,
+            "showInformation": 1,
+            "showPrimaryStar": 1,
+            "showCoordinates": 1,
+        },
+    )
+
+
 def systems_in_radius_of(coords, radius=50):
     """Get systems in a sphere of radius 50 of a coordinate tuple."""
     return _get(
