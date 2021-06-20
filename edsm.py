@@ -10,6 +10,7 @@ import pickle
 from concurrent.futures import ThreadPoolExecutor
 from pprint import pprint
 import threading
+import time
 
 import requests
 from cytoolz import mapcat
@@ -38,14 +39,31 @@ def batched(num):
     return _batched
 
 
-@retry(
-    stop_max_attempt_number=5,
-    wait_exponential_multiplier=20000,
-)
+@retry(stop_max_attempt_number=3)
 def _get_raw(url, params):
     print(f"GET {url} ({params})...")
     r = requests.get(url, params=params)
-    r.raise_for_status()
+    rate_limit = int(r.headers.get("X-Rate-Limit-Limit", 720))
+    rate_remain = int(r.headers.get("X-Rate-Limit-Remaining", 720))
+    rate_reset = int(r.headers.get("X-Rate-Limit-Reset", 0))
+    retry_after = int(r.headers.get("Retry-After", 0))
+    request_interval = rate_reset/rate_limit
+    request_preroll = 50
+    if r.status_code == 429:
+        print(f"Rate-limited: {r.headers}")
+        # Sleep for long enough to get a few prerolled requests
+        time.sleep(retry_after + request_preroll * request_interval)
+        # Raise so we get retried
+        r.raise_for_status()
+    else:
+        try:
+            r.raise_for_status()
+        except Exception:
+            print(f"<<<< REQUEST\n{r.request.__dict__}")
+            print(f">>>> RESPONSE\n{r.__dict__}")
+            raise
+    # Sleep for 80% of the amortized rate limit
+    time.sleep(0.8 * request_interval)
     return r.json()
 
 
