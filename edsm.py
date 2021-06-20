@@ -39,8 +39,8 @@ def batched(num):
 
 
 @retry(
-    stop_max_attempt_number=3,
-    wait_exponential_multiplier=10000,
+    stop_max_attempt_number=5,
+    wait_exponential_multiplier=20000,
 )
 def _get_raw(url, params):
     print(f"GET {url} ({params})...")
