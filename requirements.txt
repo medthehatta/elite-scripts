@@ -1,6 +1,13 @@
-requests
+aiofiles
+beautifulsoup4
+celery==4.4.7
 cytoolz
 diskcache
-beautifulsoup4
-retrying
+fastapi
+flower
+Jinja2
 numpy
+redis
+requests
+retrying
+uvicorn

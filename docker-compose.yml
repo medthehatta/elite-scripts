@@ -1,0 +1,50 @@
+version: '2'
+
+services:
+
+  web:
+    build: .
+    ports:
+      - 8004:8000
+    command: uvicorn main:app --host 0.0.0.0 --reload
+    volumes:
+      - .:/usr/src/app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  invalidator:
+    build: .
+    command: bash -c 'while true; do python eddn_market_invalidator.py; sleep 1; done'
+    volumes:
+      - .:/usr/src/app
+
+  worker:
+    build: .
+    command: celery worker -A worker --loglevel=debug --logfile=logs/celery.log
+    volumes:
+      - .:/usr/src/app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - web
+      - redis
+
+  redis:
+    image: redis:6-alpine
+
+  dashboard:
+    build: .
+    command: flower --app=worker.celery_worker --port=5555 --broker=redis://redis:6379/0
+    ports:
+      - 5558:5555
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - web
+      - redis
+      - worker
