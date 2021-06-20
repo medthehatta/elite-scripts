@@ -13,11 +13,13 @@ timeoutEDDN = 600000
 cache = Cache("edsm-cache")
 
 def main():
+    print("Starting invalidator...")
     context = zmq.Context()
     subscriber = context.socket(zmq.SUB)
 
     subscriber.setsockopt(zmq.SUBSCRIBE, b"")
     subscriber.setsockopt(zmq.RCVTIMEO, timeoutEDDN)
+    print("Done.")
 
     while True:
         try:

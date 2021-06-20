@@ -212,6 +212,7 @@ def best_sell_stations(cargo, system, sell_filter_args=None, radius=30):
 
 
 def pretty_print_sales(sales):
+    lines = []
     for sale in sales:
         total = sale["sale"]["total"]
         station = sale["market"]["station"]
@@ -220,14 +221,16 @@ def pretty_print_sales(sales):
         unsold = sale["sale"]["missing"]
         jump_dist = ceil(sale["market"]["jump_distance"])
         sc_dist = ceil(sale["market"]["supercruise_distance"])
-        print(
+        lines.append(
             f"{total:,} "
             f"from {station} ({sc_dist} Ls) "
             f"in {system} ({jump_dist} Ly) "
             f"({updated})"
         )
         if unsold:
-            print(f"    (missing: {', '.join(unsold)})")
+            lines.append(f"    (missing: {', '.join(unsold)})")
+
+    return lines
 
 
 def main():
@@ -272,7 +275,7 @@ def main():
     )
 
     if pretty:
-        pretty_print_sales(results)
+        print("\n".join(pretty_print_sales(results)))
     else:
         print(json.dumps(results))
 

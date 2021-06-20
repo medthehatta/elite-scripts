@@ -17,9 +17,11 @@ services:
 
   invalidator:
     build: .
-    command: bash -c 'while true; do python eddn_market_invalidator.py; sleep 1; done'
+    command: bash -c 'while true; do python eddn_market_invalidator.py | tee logs/invalidator.log; sleep 1; done'
     volumes:
       - .:/usr/src/app
+    environment:
+      - PYTHONUNBUFFERED=true
     depends_on:
       - web
 
