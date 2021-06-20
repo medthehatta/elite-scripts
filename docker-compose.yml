@@ -20,6 +20,8 @@ services:
     command: bash -c 'while true; do python eddn_market_invalidator.py; sleep 1; done'
     volumes:
       - .:/usr/src/app
+    depends_on:
+      - web
 
   worker:
     build: .
