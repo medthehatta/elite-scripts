@@ -10,7 +10,7 @@ from diskcache import Cache
 relayEDDN = "tcp://eddn.edcd.io:9500"
 timeoutEDDN = 600000
 
-dirty = Cache("edsm-dirty")
+cache = Cache("edsm-cache")
 
 def main():
     context = zmq.Context()
@@ -37,8 +37,9 @@ def main():
                     system = data["message"]["systemName"]
                     station = data["message"]["stationName"]
                     cache_key = f"{system}{station}"
-                    print(f"Dirtying market for {station} @ {system}")
-                    dirty.set(cache_key, True)
+                    if cache_key in cache:
+                        print(f"Dirtying market for {station} @ {system}")
+                        cache.delete(cache_key)
 
         except zmq.ZMQError as e:
             print("ZMQSocketException: " + str(e))
