@@ -38,8 +38,9 @@ def main():
                 if data["$schemaRef"] == market_schema:
                     system = data["message"]["systemName"]
                     station = data["message"]["stationName"]
-                    print(f"Dirtying markets for system {system}")
-                    market.invalidate_system_markets(system)
+                    if market.market_db.exists((system, station)):
+                        print(f"Invalidating market {station} @ {system}")
+                        market.invalidate(system, station)
 
         except zmq.ZMQError as e:
             print("ZMQSocketException: " + str(e))
