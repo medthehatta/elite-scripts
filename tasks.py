@@ -1,8 +1,10 @@
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 
 from worker import celery_worker
 from nearby_sale import best_sell_stations
+import market
 
 
 @celery_worker.task
@@ -23,6 +25,24 @@ def best_sell_stations_task(cargo, system, min_price, min_demand, radius):
         "min_demand": min_demand},
         radius=radius,
     )
+    end = time.time()
+    duration = end - start
+    return {
+        "ok": True,
+        "timing": {
+            "start": start,
+            "end": end,
+            "elapsed": duration,
+        },
+        "result": result,
+    }
+
+
+@celery_worker.task
+def populate_markets(systems):
+    start = time.time()
+    with ThreadPoolExecutor(max_workers=4) as exe:
+        result = list(exe.map(market.populate_system_markets, systems))
     end = time.time()
     duration = end - start
     return {

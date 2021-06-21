@@ -5,12 +5,12 @@ import zmq
 import json
 import sys
 import time
-from diskcache import Cache
+
+import market
+
 
 relayEDDN = "tcp://eddn.edcd.io:9500"
 timeoutEDDN = 600000
-
-cache = Cache("edsm-cache")
 
 def main():
     print("Starting invalidator...")
@@ -38,10 +38,8 @@ def main():
                 if data["$schemaRef"] == market_schema:
                     system = data["message"]["systemName"]
                     station = data["message"]["stationName"]
-                    cache_key = f"{system}{station}"
-                    if cache_key in cache:
-                        print(f"Dirtying market for {station} @ {system}")
-                        cache.delete(cache_key)
+                    print(f"Dirtying markets for system {system}")
+                    market.invalidate_system_markets(system)
 
         except zmq.ZMQError as e:
             print("ZMQSocketException: " + str(e))

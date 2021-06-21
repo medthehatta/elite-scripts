@@ -62,8 +62,8 @@ def _get_raw(url, params):
             print(f"<<<< REQUEST\n{r.request.__dict__}")
             print(f">>>> RESPONSE\n{r.__dict__}")
             raise
-    # Sleep for 80% of the amortized rate limit
-    time.sleep(0.8 * request_interval)
+    # Sleep for 90% of the amortized rate limit
+    time.sleep(0.9 * request_interval)
     return r.json()
 
 
@@ -84,13 +84,14 @@ def systems_get(systems):
     )
 
 
-def systems_in_sphere(current_system, radius=50):
+def systems_in_sphere(current_system, radius=50, min_radius=0):
     """Get systems in a sphere of radius 50 of another system."""
     return _get(
         "https://www.edsm.net/api-v1/sphere-systems",
         params={
             "systemName": current_system,
             "radius": radius,
+            "minRadius": min_radius,
             "showInformation": 1,
             "showPrimaryStar": 1,
             "showCoordinates": 1,
@@ -217,6 +218,17 @@ def commodity_from_system(system, commodity):
         ]
         for market in markets
     )
+
+
+def equal_volume_shells(r):
+    yield (0, r)
+    r1 = r
+    r0 = 0
+    while True:
+        r2 = (2 * r1**3 - r0**3)**(1/3)
+        yield (r1, r2)
+        r0 = r1
+        r1 = r2
 
 
 def commodity_in_sphere(center_system, commodity, radius=10):

@@ -2,6 +2,26 @@ version: '2'
 
 services:
 
+  market_db:
+    image: redis:6-alpine
+    volumes:
+      - ./db:/data
+
+  market_app:
+    build: .
+    ports:
+      - 8005:8000
+    command: tail -f /dev/null
+    volumes:
+      - .:/usr/src/app
+    environment:
+      - CELERY_BROKER_URL=redis://celery_broker:6379/0
+      - CELERY_RESULT_BACKEND=redis://celery_broker:6379/0
+      - DB_URL=redis://market_db:6379/0
+    depends_on:
+      - celery_broker
+      - market_db
+
   web:
     build: .
     ports:
@@ -10,10 +30,10 @@ services:
     volumes:
       - .:/usr/src/app
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://celery_broker:6379/0
+      - CELERY_RESULT_BACKEND=redis://celery_broker:6379/0
     depends_on:
-      - redis
+      - celery_broker
 
   invalidator:
     build: .
@@ -22,8 +42,10 @@ services:
       - .:/usr/src/app
     environment:
       - PYTHONUNBUFFERED=true
+      - DB_URL=redis://market_db:6379/0
     depends_on:
       - web
+      - market_db
 
   worker:
     build: .
@@ -31,24 +53,25 @@ services:
     volumes:
       - .:/usr/src/app
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://celery_broker:6379/0
+      - CELERY_RESULT_BACKEND=redis://celery_broker:6379/0
+      - DB_URL=redis://market_db:6379/0
     depends_on:
       - web
-      - redis
+      - celery_broker
 
-  redis:
+  celery_broker:
     image: redis:6-alpine
 
   dashboard:
     build: .
-    command: flower --app=worker.celery_worker --port=5555 --broker=redis://redis:6379/0
+    command: flower --app=worker.celery_worker --port=5555 --broker=redis://celery_broker:6379/0
     ports:
       - 5558:5555
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://celery_broker:6379/0
+      - CELERY_RESULT_BACKEND=redis://celery_broker:6379/0
     depends_on:
       - web
-      - redis
+      - celery_broker
       - worker
