@@ -112,6 +112,7 @@ class RedisDB:
         return getattr(self.client, attr)
 
 
+station_db = RedisDB.from_environment("DB_URL", namespace="stations")
 market_db = RedisDB.from_environment("DB_URL", namespace="markets")
 request_db = RedisDB.from_environment("DB_URL", namespace="requests")
 
@@ -147,7 +148,7 @@ def _get_raw(url, params):
     return _get_with_http(url, params).json()
 
 
-def systems_in_sphere(current_system, radius=50, min_radius=0):
+def systems_in_sphere_raw(current_system, radius=50, min_radius=0):
     """Get systems in a sphere of radius 50 of another system."""
     return _get_raw(
         "https://www.edsm.net/api-v1/sphere-systems",
@@ -173,37 +174,18 @@ def equal_volume_shells(r):
         r1 = r2
 
 
-def queue_markets_near(system, max_radius=50, initial_radius=15):
-    request_id = str(uuid.uuid1())
-    shells = itertools.takewhile(
-        lambda x: x[1] < max_radius,
-        equal_volume_shells(initial_radius),
-    )
-    task_systems = []
-    tasks_ = []
-    for (r0, r1) in shells:
-        batch = systems_in_sphere(system, min_radius=r0, radius=r1)
-        names = [s["name"] for s in batch]
-        task_systems.append(names)
-        tasks_.append(tasks.populate_markets.delay(names))
-
-    return {
-        "request_id": request_id,
-        "system": system,
-        "max_radius": max_radius,
-        "initial_radius": initial_radius,
-        "tasks": [
-            {"task_id": task.id, "systems": names_batched}
-            for (task, names_batched) in zip(tasks_, task_systems)
-        ],
-    }
-
-
 def stations_in_system_raw(system):
     return _get_raw(
         "https://www.edsm.net/api-system-v1/stations",
         params={"systemName": system},
     )
+
+
+def station_names_in_system_onlycache(system):
+    if not station_db.exists(system):
+        return []
+    else:
+        return [station_db.get(system)]
 
 
 def stations_in_system(system):
@@ -214,6 +196,7 @@ def stations_in_system(system):
         "updateTime",
         "type",
     ]
+    station_db.set(system, [s["name"] for s in result["stations"]])
     return [{k: s[k] for k in wanted_keys} for s in result["stations"]]
 
 
@@ -230,6 +213,14 @@ def market_in_station(system, station):
     if not market_db.exists(key):
         market_db.set(key, market_in_station_raw(system, station))
     return market_db.get(key)
+
+
+def market_in_station_onlycache(system, station):
+    key = (system, station)
+    if not market_db.exists(key):
+        return []
+    else:
+        return [market_db.get(key)]
 
 
 def markets_in_system(system):
@@ -253,25 +244,9 @@ def markets_in_system(system):
         return list(exe.map(_market, stations))
 
 
-def populate_system_markets(system):
-    result = [
-        market_db.set((system, m["station"]["name"]), m)
-        for m in markets_in_system(system)
-    ]
-    market_db.set(("dirty", system), False)
-    return result
-
-
 def invalidate(system, station):
     market_db.invalidate((system, station))
     market_db.set(("dirty", system), True)
-
-
-def get_system_markets(system):
-    return [
-        market_db.peek((system, m["station"]["name"]))
-        for m in markets_in_system(system)
-    ]
 
 
 def _which_bin(system, shells):
@@ -283,7 +258,7 @@ def _which_bin(system, shells):
     )
 
 
-def relevant_markets_near(location, commodity_filter, initial_radius=15, max_radius=50):
+def request_near(location, initial_radius=15, max_radius=50):
     request_id = str(uuid.uuid1())
     systems = systems_in_sphere(location, radius=max_radius)
     system_names = [system["name"] for system in systems]
@@ -321,7 +296,8 @@ def relevant_markets_near(location, commodity_filter, initial_radius=15, max_rad
         "location": location,
         "max_radius": max_radius,
         "initial_radius": initial_radius,
-        "systems": system_names,
+        "systems": systems,
+        "system_names": system_names,
         "tasks": {
             task.id: {"task_id": task.id, "shell": i, "systems": names_batched}
             for ((i, task), names_batched) in zip(tasks_, task_systems)
@@ -366,6 +342,7 @@ def request_status(request_id):
         "max_radius": request["max_radius"],
         "initial_radius": request["initial_radius"],
         "systems": request["systems"],
+        "system_names": requst["system_names"],
         "system_completion": system_completion,
         "system_completion_percent": system_completion_percent,
         "tasks": shell_completion,

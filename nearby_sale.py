@@ -63,6 +63,37 @@ def multi_sell_filter(min_demand=1000, min_price=100000, commodities=None):
     return _multi_sell_filter
 
 
+def filter_markets(all_markets, commodity_filter=None):
+    results = []
+    if commodity_filter is None:
+        return all_markets
+    else:
+        for market in all_markets:
+            stations = [
+                market["station"] for market in markets
+            ]
+            all_commodities = [
+                get_in(["market", "commodities"], market, default=[])
+                for market in markets
+            ]
+            relevant_commodities = [
+                commodity_filter(market) for market in markets
+            ]
+            results.extend(
+                [
+                    {
+                        "station": station,
+                        "commodities": commodities,
+                        "relevant": relevant,
+                    }
+                    for (station, commodities, relevant) in
+                    zip(stations, all_commodities, relevant_commodities)
+                    if relevant
+                ]
+            )
+        return results
+
+
 def relevant_markets_near(
     location,
     commodity_filter=None,
@@ -199,6 +230,39 @@ def best_sell_stations(cargo, system, sell_filter_args=None, radius=30):
     )
     nearby = relevant_markets_near(system, sell_filter, radius=radius)
     digested = digest_relevant_markets_near(nearby)
+    sales = [
+        {"sale": hypothetical_sale(cargo, n), "market": n}
+        for n in digested
+    ]
+    sales_sorted = sorted(
+        sales,
+        key=lambda x: x["sale"]["total"],
+        reverse=True
+    )
+    return sales_sorted
+
+
+def best_sell_stations_celery(cargo, location, sell_filter_args=None, radius=30):
+    sell_filter_args = sell_filter_args or {
+        "min_price": 200000,
+        "min_demand": 100,
+    }
+    sell_filter = multi_sell_filter(
+        commodities=list(cargo.keys()),
+        **sell_filter_args
+    )
+    market_request = market.request_near(
+        location,
+        initial_radius=15,
+        max_radius=radius,
+    )
+    all_cached_markets = itertools.chain.from_iterable(
+        market_in_station_onlycache(system, station)
+        for station in station_names_in_system_onlycache(system)
+        for system in market_request["system_names"]
+    )
+    filtered = filter_markets(all_cached_markets, commodity_filter=sell_filter)
+    digested = digest_relevant_markets_near(filtered)
     sales = [
         {"sale": hypothetical_sale(cargo, n), "market": n}
         for n in digested
