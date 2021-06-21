@@ -273,6 +273,15 @@ def get_system_markets(system):
     ]
 
 
+def _which_bin(system, shells):
+    return next(
+        i
+        for (i, (r0, r1))
+        in enumerate(shells)
+        if r0 <= system["distance"] <= r1
+    )
+
+
 def relevant_markets_near(location, commodity_filter, initial_radius=15, max_radius=50):
     request_id = str(uuid.uuid1())
     systems = systems_in_sphere(location, radius=max_radius)
@@ -285,15 +294,7 @@ def relevant_markets_near(location, commodity_filter, initial_radius=15, max_rad
         )
     )
 
-    def _which_bin(system):
-        return next(
-            i
-            for (i, (r0, r1))
-            in reversed(list(enumerate(shells)))
-            if system["distance"] < r1
-        )
-
-    bins = groupby(_which_bin, systems)
+    bins = groupby(lambda s: _which_bin(s, shells), systems)
 
     def _dirty(system):
         return market_db.get(("dirty", system), default=None)
