@@ -22,6 +22,7 @@ from cytoolz import merge
 from cytoolz import partial
 from cytoolz import partition_all
 from cytoolz import sliding_window
+from cytoolz import dissoc
 from diskcache import Cache
 from retrying import retry
 from celery.result import AsyncResult
@@ -347,6 +348,13 @@ def request_status(request_id):
         for (k, v) in dirty.items()
     }
 
+    def _compl(status):
+        return system_completion.get(status, 0)
+
+    system_completion_percent = 100 * (
+        _compl("Complete") / (_compl("Complete") + _compl("Partial") + _compl("Pending"))
+    )
+
     def _shell_status(item):
         return AsyncResult(item["task_id"]).state
 
@@ -359,5 +367,7 @@ def request_status(request_id):
         "initial_radius": request["initial_radius"],
         "systems": request["systems"],
         "system_completion": system_completion,
+        "system_completion_percent": system_completion_percent,
         "tasks": shell_completion,
+        "unfinished_shells": dissoc(shell_completion, "SUCCESS"),
     }
