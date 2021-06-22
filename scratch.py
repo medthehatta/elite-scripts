@@ -288,9 +288,14 @@ def get_deep_market(entry):
     return cascading_lookup(lookups, entry)
 
 
-def do_sale():
+def do_sale(system, radius=30):
     try:
-        result = nearby_sale.best_sell_stations_celery({"Alexandrite": 12}, "Ebor", sell_filter_args={"min_price": 100000, "min_demand": 100}, radius=30) #kk
+        result = nearby_sale.best_sell_stations_celery(
+            {"Alexandrite": 12},
+            system,
+            sell_filter_args={"min_price": 100000, "min_demand": 100},
+            radius=radius,
+        )
     except Exception:
         result = None
     d = groupby(lambda x: x[0], nearby_sale.bad)

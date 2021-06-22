@@ -72,22 +72,19 @@ def log(x):
 
 def filter_markets(markets, commodity_filter):
     results = []
-    for market in markets:
-        station = market["station"]
-        all_commodities = get_in(["market", "commodities"], market, default=[])
-        relevant_commodities = commodity_filter(market)
-        results.extend(
-            [
+    for mkt in markets:
+        station = mkt["station"]
+        # or [] because this could return None instead of omitting the commodities
+        all_commodities = get_in(["market", "commodities"], mkt, default=None) or []
+        relevant_commodities = commodity_filter(mkt)
+        if relevant_commodities:
+            results.append(
                 {
                     "station": station,
-                    "commodities": commodities,
-                    "relevant": relevant,
+                    "commodities": all_commodities,
+                    "relevant": relevant_commodities,
                 }
-                for (commodities, relevant) in
-                zip(all_commodities, relevant_commodities)
-                if relevant
-            ]
-        )
+            )
     return log(results)
 
 
