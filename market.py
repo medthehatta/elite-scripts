@@ -182,10 +182,7 @@ def stations_in_system_raw(system):
 
 
 def station_names_in_system_onlycache(system):
-    if not station_db.exists(system):
-        return []
-    else:
-        return [station_db.get(system)]
+    return station_db.get(system, default=None)
 
 
 def stations_in_system(system):
@@ -208,19 +205,14 @@ def market_in_station_raw(system, station):
     )
 
 
-def market_in_station(system, station):
-    key = (system, station)
-    if not market_db.exists(key):
-        market_db.set(key, market_in_station_raw(system, station))
-    return market_db.get(key)
-
-
 def market_in_station_onlycache(system, station):
     key = (system, station)
-    if not market_db.exists(key):
-        return []
-    else:
-        return [market_db.get(key)]
+    return market_db.get(key, default=None)
+
+
+def log(x):
+    pprint(x)
+    return x
 
 
 def markets_in_system(system):
@@ -235,10 +227,15 @@ def markets_in_system(system):
     ]
 
     def _market(station):
-        return {
-            "market": market_in_station(system, station["name"]),
-            "station": station,
-        }
+        key = (system, station["name"])
+        if not market_db.exists(key):
+            raw = market_in_station_raw(system, station["name"])
+            result = {"market": raw, "station": station}
+            if 'market' in result['market']:
+                pprint(f"ERRONEOUS BADNESS: {result}")
+                raise ValueError()
+            market_db.set(key, result)
+        return market_db.get((system, station["name"]))
 
     with ThreadPoolExecutor(max_workers=6) as exe:
         return list(exe.map(_market, stations))
@@ -260,7 +257,7 @@ def _which_bin(system, shells):
 
 def request_near(location, initial_radius=15, max_radius=50):
     request_id = str(uuid.uuid1())
-    systems = systems_in_sphere(location, radius=max_radius)
+    systems = systems_in_sphere_raw(location, radius=max_radius)
     system_names = [system["name"] for system in systems]
 
     shells = list(

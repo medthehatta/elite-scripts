@@ -42,7 +42,7 @@ def best_sell_stations_task(cargo, system, min_price, min_demand, radius):
 def populate_markets(systems):
     start = time.time()
     with ThreadPoolExecutor(max_workers=4) as exe:
-        result = list(exe.map(market.populate_system_markets, systems))
+        result = list(exe.map(market.markets_in_system, systems))
     end = time.time()
     duration = end - start
     return {

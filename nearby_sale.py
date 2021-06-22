@@ -9,10 +9,12 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from pprint import pprint
 from math import ceil
+import itertools
 
 from cytoolz import get_in
 
 import edsm
+import market
 
 
 def without_false(seq):
@@ -63,75 +65,58 @@ def multi_sell_filter(min_demand=1000, min_price=100000, commodities=None):
     return _multi_sell_filter
 
 
-def filter_markets(all_markets, commodity_filter=None):
-    results = []
-    if commodity_filter is None:
-        return all_markets
-    else:
-        for market in all_markets:
-            stations = [
-                market["station"] for market in markets
-            ]
-            all_commodities = [
-                get_in(["market", "commodities"], market, default=[])
-                for market in markets
-            ]
-            relevant_commodities = [
-                commodity_filter(market) for market in markets
-            ]
-            results.extend(
-                [
-                    {
-                        "station": station,
-                        "commodities": commodities,
-                        "relevant": relevant,
-                    }
-                    for (station, commodities, relevant) in
-                    zip(stations, all_commodities, relevant_commodities)
-                    if relevant
-                ]
-            )
-        return results
+def log(x):
+    pprint(x)
+    return x
 
 
-def relevant_markets_near(
-    location,
-    commodity_filter=None,
-    radius=30,
-):
+def filter_markets(markets, commodity_filter):
     results = []
-    if commodity_filter is None:
-        return markets_near(location, radius)
-    else:
-        systems = edsm.systems_in_sphere(location, radius)
-        system_names = [system["name"] for system in systems]
-        with ThreadPoolExecutor(max_workers=6) as exe:
-            all_markets = list(exe.map(edsm.markets_in_system, system_names))
-        for (system, markets) in zip(systems, all_markets):
-            stations = [
-                market["station"] for market in markets
+    for market in markets:
+        station = market["station"]
+        all_commodities = get_in(["market", "commodities"], market, default=[])
+        relevant_commodities = commodity_filter(market)
+        results.extend(
+            [
+                {
+                    "station": station,
+                    "commodities": commodities,
+                    "relevant": relevant,
+                }
+                for (commodities, relevant) in
+                zip(all_commodities, relevant_commodities)
+                if relevant
             ]
-            all_commodities = [
-                get_in(["market", "commodities"], market, default=[])
-                for market in markets
+        )
+    return log(results)
+
+
+def filter_markets_bak(markets, commodity_filter):
+    results = []
+    for market in markets:
+        stations = [
+            market["station"] for market in markets
+        ]
+        all_commodities = [
+            get_in(["market", "commodities"], market, default=[])
+            for market in markets
+        ]
+        relevant_commodities = [
+            commodity_filter(market) for market in markets
+        ]
+        results.extend(
+            [
+                {
+                    "station": station,
+                    "commodities": commodities,
+                    "relevant": relevant,
+                }
+                for (station, commodities, relevant) in
+                zip(stations, all_commodities, relevant_commodities)
+                if relevant
             ]
-            relevant_commodities = [
-                commodity_filter(market) for market in markets
-            ]
-            results.extend(
-                [
-                    {
-                        "system": system,
-                        "station": station,
-                        "commodities": commodities,
-                        "relevant": relevant,
-                    }
-                    for (station, commodities, relevant) in
-                    zip(stations, all_commodities, relevant_commodities)
-                    if relevant
-                ]
-            )
-        return results
+        )
+    return results
 
 
 def time_since(timestr):
@@ -256,12 +241,18 @@ def best_sell_stations_celery(cargo, location, sell_filter_args=None, radius=30)
         initial_radius=15,
         max_radius=radius,
     )
-    all_cached_markets = itertools.chain.from_iterable(
-        market_in_station_onlycache(system, station)
-        for station in station_names_in_system_onlycache(system)
-        for system in market_request["system_names"]
-    )
-    filtered = filter_markets(all_cached_markets, commodity_filter=sell_filter)
+    markets = []
+    for system in market_request["system_names"]:
+        print(f"{system=}")
+        stations_ = market.station_names_in_system_onlycache(system) or []
+        print(f"{stations_=}")
+        for station in stations_:
+            print(f"{station=}")
+            if market_ := market.market_in_station_onlycache(system, station):
+                print(f"{market_=}")
+                markets.append(market_)
+    import pdb; pdb.set_trace()
+    filtered = filter_markets(markets, commodity_filter=sell_filter)
     digested = digest_relevant_markets_near(filtered)
     sales = [
         {"sale": hypothetical_sale(cargo, n), "market": n}
