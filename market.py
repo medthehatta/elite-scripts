@@ -260,28 +260,16 @@ def request_near(location, initial_radius=15, max_radius=50):
     systems = systems_in_sphere_raw(location, radius=max_radius)
     system_names = [system["name"] for system in systems]
 
-    shells = list(
-        itertools.takewhile(
-            lambda x: x[1] < max_radius,
-            equal_volume_shells(initial_radius),
-        )
-    )
-
-    bins = groupby(lambda s: _which_bin(s, shells), systems)
-
     def _dirty(system):
         return market_db.get(("dirty", system), default=None)
 
     dirty = groupby(_dirty, system_names)
 
-    task_systems = [
-        [
-            s["name"] for s in bins[i]
-            if s["name"] not in dirty.get(False, [])
-        ]
-        for i in range(len(shells))
-        if i in bins
-    ]
+    # ...
+
+    need_update = dirty.get(True, []) + dirty.get(None, [])
+
+    task_systems = list(partition_all(10, need_update))
 
     tasks_ = [
         (i, tasks.populate_markets.delay(names))

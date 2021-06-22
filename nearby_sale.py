@@ -227,6 +227,9 @@ def best_sell_stations(cargo, system, sell_filter_args=None, radius=30):
     return sales_sorted
 
 
+bad = []
+
+
 def best_sell_stations_celery(cargo, location, sell_filter_args=None, radius=30):
     sell_filter_args = sell_filter_args or {
         "min_price": 200000,
@@ -249,9 +252,14 @@ def best_sell_stations_celery(cargo, location, sell_filter_args=None, radius=30)
         for station in stations_:
             print(f"{station=}")
             if market_ := market.market_in_station_onlycache(system, station):
+                if "market" in market_.get("market", {}):
+                    bad.append(("nested", market_))
+                    print(f"Found bad nested market: {market_=}")
+                if "station" not in market_:
+                    bad.append(("stationless", market_))
+                    print(f"Found bad stationless market: {market_=}")
                 print(f"{market_=}")
                 markets.append(market_)
-    import pdb; pdb.set_trace()
     filtered = filter_markets(markets, commodity_filter=sell_filter)
     digested = digest_relevant_markets_near(filtered)
     sales = [

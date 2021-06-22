@@ -4,6 +4,7 @@ import eddb_tables as et
 from importlib import reload
 from cytoolz import get
 from cytoolz import get_in
+from cytoolz import groupby
 from cytoolz import mapcat
 from itertools import chain
 from concurrent.futures import ThreadPoolExecutor
@@ -11,6 +12,7 @@ import json
 from pprint import pprint
 import datetime
 import market as mkt
+import nearby_sale
 
 
 def without_false(seq):
@@ -276,3 +278,20 @@ def mining_sell_filter(**kwargs):
 
 
 test_haul = {"Alexandrite": 12, "Serendibite": 15, "Monazite": 8}
+
+
+def get_deep_market(entry):
+    lookups = [
+        ["market"]*n
+        for n in reversed(range(0, 11))
+    ]
+    return cascading_lookup(lookups, entry)
+
+
+def do_sale():
+    try:
+        result = nearby_sale.best_sell_stations_celery({"Alexandrite": 12}, "Ebor", sell_filter_args={"min_price": 100000, "min_demand": 100}, radius=30) #kk
+    except Exception:
+        result = None
+    d = groupby(lambda x: x[0], nearby_sale.bad)
+    return (result, d)
