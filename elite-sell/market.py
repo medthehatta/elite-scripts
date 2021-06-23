@@ -551,18 +551,6 @@ def _():
     return {"ok": True, "api_docs": "/docs"}
 
 
-@app.post("/scan")
-def _new(location: str, radius: float = 40.0):
-    """Start scanning markets near a location."""
-    return request_near(location, radius=radius)
-
-
-@app.get("/scan/{scan_id}")
-def _check(scan_id: str):
-    """Check the status of a scan."""
-    return request_status(scan_id)
-
-
 @app.post("/sales")
 def _sales(payload: SellStationRequest, scan_id: str = ""):
     """
@@ -595,3 +583,15 @@ def _sales(payload: SellStationRequest, scan_id: str = ""):
     )
 
     return {"scan": req, "best": best}
+
+
+@app.post("/scan")
+def _scan(location: str, radius: float = 40.0):
+    """Start scanning markets near a location."""
+    return request_near(location, radius=radius)
+
+
+@app.get("/scan/{scan_id}")
+def _check(scan_id: str):
+    """Check the status of a scan."""
+    return request_status(scan_id)
