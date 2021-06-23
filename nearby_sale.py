@@ -242,20 +242,12 @@ def best_sell_stations_celery(cargo, location, sell_filter_args=None, radius=30)
         max_radius=radius,
     )
     markets = []
-    for system in market_request["system_names"]:
+    for system_name in market_request["system_names"]:
         print(f"{system=}")
-        stations_ = market.station_names_in_system_onlycache(system) or []
+        station_names_ = market.station_names_in_system_onlycache(system_name) or []
         print(f"{stations_=}")
-        for station in stations_:
-            print(f"{station=}")
-            if market_ := market.market_in_station_onlycache(system, station):
-                if "market" in market_.get("market", {}):
-                    bad.append(("nested", market_))
-                    print(f"Found bad nested market: {market_=}")
-                if "station" not in market_:
-                    bad.append(("stationless", market_))
-                    print(f"Found bad stationless market: {market_=}")
-                print(f"{market_=}")
+        for station_name in station_names_:
+            if market_ := market.market_in_station_onlycache(system_name, station_name):
                 markets.append(market_)
     filtered = filter_markets(markets, commodity_filter=sell_filter)
     digested = digest_relevant_markets_near(filtered)
