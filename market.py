@@ -148,6 +148,27 @@ def _get_raw(url, params):
     return _get_with_http(url, params).json()
 
 
+def _location_raw(name, api_key):
+    return _get_raw(
+        "https://www.edsm.net/api-logs-v1/get-position",
+        params={
+            "commanderName": name,
+            "apiKey": api_key,
+        },
+    )
+
+
+def _cargo_raw(name, api_key):
+    return _get_raw(
+        "https://www.edm.net/api-commander-v1/get-materials",
+        params={
+            "commanderName": name,
+            "apiKey": api_key,
+            "type": "cargo",
+        },
+    )
+
+
 def systems_in_sphere_raw(current_system, radius=50, min_radius=0):
     """Get systems in a sphere of radius 50 of another system."""
     return _get_raw(
@@ -181,32 +202,32 @@ def stations_in_system_raw(system):
     )
 
 
-def station_names_in_system_onlycache(system):
-    return station_db.get(system, default=None)
+def station_names_in_system_onlycache(system_name):
+    return station_db.get(system_name, default=None)
 
 
 def stations_in_system(system):
-    result = stations_in_system_raw(system)
+    result = stations_in_system_raw(system["name"])
     wanted_keys = [
         "name",
         "distanceToArrival",
         "updateTime",
         "type",
     ]
-    station_db.set(system, [s["name"] for s in result["stations"]])
+    station_db.set(system["name"], [s["name"] for s in result["stations"]])
     return [{k: s[k] for k in wanted_keys} for s in result["stations"]]
 
 
-def market_in_station_raw(system, station):
+def market_in_station_raw(system_name, station_name):
     """Get the market data for a station in a system."""
     return _get_raw(
         "https://www.edsm.net/api-system-v1/stations/market",
-        params={"systemName": system, "stationName": station},
+        params={"systemName": system_name, "stationName": station_name},
     )
 
 
-def market_in_station_onlycache(system, station):
-    key = (system, station)
+def market_in_station_onlycache(system_name, station_name):
+    key = (system_name, station_name)
     return market_db.get(key, default=None)
 
 
@@ -227,23 +248,20 @@ def markets_in_system(system):
     ]
 
     def _market(station):
-        key = (system, station["name"])
+        key = (system["name"], station["name"])
         if not market_db.exists(key):
-            raw = market_in_station_raw(system, station["name"])
-            result = {"market": raw, "station": station}
-            if 'market' in result['market']:
-                pprint(f"ERRONEOUS BADNESS: {result}")
-                raise ValueError()
+            raw = market_in_station_raw(system["name"], station["name"])
+            result = {"market": raw, "station": station, "system": system}
             market_db.set(key, result)
-        return market_db.get((system, station["name"]))
+        return market_db.get((system["name"], station["name"]))
 
     with ThreadPoolExecutor(max_workers=6) as exe:
         return list(exe.map(_market, stations))
 
 
-def invalidate(system, station):
-    market_db.invalidate((system, station))
-    market_db.set(("dirty", system), True)
+def invalidate(system_name, station_name):
+    market_db.invalidate((system_name, station_name))
+    market_db.set(("dirty", system_name), True)
 
 
 def _which_bin(system, shells):
@@ -267,19 +285,16 @@ def request_near(location, initial_radius=15, max_radius=50):
 
     need_update = dirty.get(True, []) + dirty.get(None, [])
 
-    need_update_names = [
-        system["name"]
-        for system in sorted(
-            need_update,
-            key=lambda x: x["distance"],
-        )
-    ]
+    need_update_names = sorted(
+        need_update,
+        key=lambda x: x["distance"],
+    )
 
     task_systems = list(partition_all(10, need_update_names))
 
     tasks_ = [
-        (i, tasks.populate_markets.delay(names))
-        for (i, names) in enumerate(task_systems)
+        (i, tasks.populate_markets.delay(batch))
+        for (i, batch) in enumerate(task_systems)
     ]
 
     request = {
@@ -290,8 +305,8 @@ def request_near(location, initial_radius=15, max_radius=50):
         "systems": systems,
         "system_names": system_names,
         "tasks": {
-            task.id: {"task_id": task.id, "shell": i, "systems": names_batched}
-            for ((i, task), names_batched) in zip(tasks_, task_systems)
+            task.id: {"task_id": task.id, "shell": i, "systems": systems_batched}
+            for ((i, task), systems_batched) in zip(tasks_, task_systems)
         },
     }
 
@@ -304,7 +319,7 @@ def request_status(request_id):
     request = request_db.get(request_id)
     
     def _dirty(system):
-        return market_db.get(("dirty", system), default=None)
+        return market_db.get(("dirty", system["name"]), default=None)
 
     dirty = groupby(_dirty, request["systems"])
     system_completion = {
@@ -333,7 +348,7 @@ def request_status(request_id):
         "max_radius": request["max_radius"],
         "initial_radius": request["initial_radius"],
         "systems": request["systems"],
-        "system_names": requst["system_names"],
+        "system_names": request["system_names"],
         "system_completion": system_completion,
         "system_completion_percent": system_completion_percent,
         "tasks": shell_completion,
