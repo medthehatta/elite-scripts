@@ -246,9 +246,9 @@ def invalidate(system_name, station_name):
     market_db.set(("dirty", system_name), True)
 
 
-def request_near(location, initial_radius=15, max_radius=50):
+def request_near(location, radius=50):
     request_id = str(uuid.uuid1())
-    systems = systems_in_sphere_raw(location, radius=max_radius)
+    systems = systems_in_sphere_raw(location, radius=radius)
     system_names = [system["name"] for system in systems]
 
     def _dirty(system):
@@ -273,8 +273,7 @@ def request_near(location, initial_radius=15, max_radius=50):
     request = {
         "request_id": request_id,
         "location": location,
-        "max_radius": max_radius,
-        "initial_radius": initial_radius,
+        "radius": radius,
         "systems": systems,
         "system_names": system_names,
         "tasks": {
@@ -322,36 +321,13 @@ def request_status(request_id):
     return {
         "request_id": request["request_id"],
         "location": request["location"],
-        "max_radius": request["max_radius"],
-        "initial_radius": request["initial_radius"],
+        "radius": request["radius"],
         "systems": request["systems"],
         "system_names": request["system_names"],
         "system_completion": system_completion,
         "system_completion_percent": system_completion_percent,
         "tasks": shell_completion,
         "unfinished_shells": dissoc(shell_completion, "SUCCESS"),
-    }
-
-
-@celery_worker.task
-def best_sell_stations_task(cargo, system, min_price, min_demand, radius):
-    start = time.time()
-    result = best_sell_stations(
-        cargo,
-        system,
-        sell_filter_args={"min_price": min_price, "min_demand": min_demand},
-        radius=radius,
-    )
-    end = time.time()
-    duration = end - start
-    return {
-        "ok": True,
-        "timing": {
-            "start": start,
-            "end": end,
-            "elapsed": duration,
-        },
-        "result": result,
     }
 
 
@@ -436,7 +412,7 @@ def filter_markets(markets, commodity_filter):
                     "relevant": relevant_commodities,
                 }
             )
-    return log(results)
+    return results
 
 
 def time_since(timestr):
@@ -523,7 +499,7 @@ def hypothetical_sale(commodities, market):
     }
 
 
-def best_sell_stations(cargo, location, min_price=1, min_demand=1, radius=30):
+def best_sell_stations(system_names, cargo, min_price=1, min_demand=1):
     sell_filter_args = {
         "min_price": min_price,
         "min_demand": min_demand,
@@ -531,13 +507,8 @@ def best_sell_stations(cargo, location, min_price=1, min_demand=1, radius=30):
     sell_filter = multi_sell_filter(
         commodities=list(cargo.keys()), **sell_filter_args
     )
-    market_request = request_near(
-        location,
-        initial_radius=15,
-        max_radius=radius,
-    )
     markets = []
-    for system_name in market_request["system_names"]:
+    for system_name in system_names:
         station_names_ = station_names_in_system_onlycache(system_name) or []
         for station_name in station_names_:
             if market_ := market_in_station_onlycache(
@@ -556,13 +527,40 @@ def best_sell_stations(cargo, location, min_price=1, min_demand=1, radius=30):
 
 
 class SellStationRequest(BaseModel):
-    system: str
+    location: str
+    radius: float = 40.0
     min_price: int = 100000
     min_demand: int = 1
-    radius: int = 40
     cargo: Dict[str, int]
 
 
 @app.get("/")
 def _():
     return {"ok": True}
+
+
+@app.post("/scan")
+def _new(location: str, radius: float = 40.0):
+    return request_near(location, radius=radius)
+
+
+@app.get("/scan/{scan_id}")
+def _check(scan_id: str):
+    return request_status(scan_id)
+
+
+@app.post("/sales")
+def _sales(payload: SellStationRequest, scan_id: str = ""):
+    if scan_id:
+        req = request_status(scan_id)
+    else:
+        req = request_near(payload.location, radius=payload.radius)
+
+    best = best_sell_stations(
+        req["system_names"],
+        payload.cargo,
+        min_price=payload.min_price,
+        min_demand=payload.min_demand,
+    )
+
+    return {"scan": req, "best": best}
