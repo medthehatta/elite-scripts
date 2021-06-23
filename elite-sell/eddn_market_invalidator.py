@@ -12,6 +12,7 @@ import market
 relayEDDN = "tcp://eddn.edcd.io:9500"
 timeoutEDDN = 600000
 
+
 def main():
     print("Starting invalidator...")
     context = zmq.Context()
@@ -28,7 +29,7 @@ def main():
             while True:
                 message = subscriber.recv()
 
-                if message == False:
+                if message is False:
                     subscriber.disconnect(relayEDDN)
                     break
 

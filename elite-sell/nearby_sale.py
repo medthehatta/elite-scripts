@@ -6,10 +6,8 @@ Finds the most profitable nearby station to sell a cargo haul.
 
 import datetime
 import json
-from concurrent.futures import ThreadPoolExecutor
 from pprint import pprint
 from math import ceil
-import itertools
 
 from cytoolz import get_in
 
@@ -40,13 +38,15 @@ def filter_sell_commodity(name, min_demand=1000, min_price=100000):
         commodities = commodities or []
         return next(
             (
-                c for c in commodities
-                if c["name"].lower() == name.lower() and
-                c["demand"] >= min_demand and
-                c["sellPrice"] >= min_price
+                c
+                for c in commodities
+                if c["name"].lower() == name.lower()
+                and c["demand"] >= min_demand
+                and c["sellPrice"] >= min_price
             ),
             None,
         )
+
     return _filter_sell_commodity
 
 
@@ -60,8 +60,10 @@ def multi_sell_filter(min_demand=1000, min_price=100000, commodities=None):
         )
         for name in commodities
     ]
+
     def _multi_sell_filter(market):
         return list(without_false(cf(market) for cf in all_filters))
+
     return _multi_sell_filter
 
 
@@ -75,8 +77,11 @@ def filter_markets(markets, commodity_filter):
     for mkt in markets:
         station = mkt["station"]
         system = mkt["system"]
-        # or [] because this could return None instead of omitting the commodities
-        all_commodities = get_in(["market", "commodities"], mkt, default=None) or []
+        # or [] because this could return None instead
+        # of omitting the commodities
+        all_commodities = (
+            get_in(["market", "commodities"], mkt, default=None) or []
+        )
         relevant_commodities = commodity_filter(mkt)
         if relevant_commodities:
             results.append(
@@ -90,34 +95,6 @@ def filter_markets(markets, commodity_filter):
     return log(results)
 
 
-def filter_markets_bak(markets, commodity_filter):
-    results = []
-    for market in markets:
-        stations = [
-            market["station"] for market in markets
-        ]
-        all_commodities = [
-            get_in(["market", "commodities"], market, default=[])
-            for market in markets
-        ]
-        relevant_commodities = [
-            commodity_filter(market) for market in markets
-        ]
-        results.extend(
-            [
-                {
-                    "station": station,
-                    "commodities": commodities,
-                    "relevant": relevant,
-                }
-                for (station, commodities, relevant) in
-                zip(stations, all_commodities, relevant_commodities)
-                if relevant
-            ]
-        )
-    return results
-
-
 def time_since(timestr):
     tm = datetime.datetime.strptime(timestr + " Z", "%Y-%m-%d %H:%M:%S %z")
     delta = datetime.datetime.now().astimezone() - tm
@@ -127,7 +104,7 @@ def time_since(timestr):
 def readable_time_since(delta):
     days = delta.days
     hours = delta.seconds // 3600
-    minutes = (delta.seconds - 3600*hours) // 60
+    minutes = (delta.seconds - 3600 * hours) // 60
     return f"{days}d {hours}h {minutes}m"
 
 
@@ -188,7 +165,7 @@ def hypothetical_sale(commodities, market):
         {
             "name": name,
             "sellPrice": mkt[name]["sellPrice"],
-            "revenue": mkt[name]["sellPrice"]*quantity,
+            "revenue": mkt[name]["sellPrice"] * quantity,
         }
         for (name, quantity) in commodities.items()
         if name in mkt
@@ -197,46 +174,20 @@ def hypothetical_sale(commodities, market):
         "total": sum(m["revenue"] for m in matches),
         "matched": matches,
         "missing": [
-            name for (name, quantity) in commodities.items()
-            if name not in mkt
+            name for (name, quantity) in commodities.items() if name not in mkt
         ],
     }
 
 
-def best_sell_stations(cargo, system, sell_filter_args=None, radius=30):
+def best_sell_stations(
+    cargo, location, sell_filter_args=None, radius=30
+):
     sell_filter_args = sell_filter_args or {
         "min_price": 200000,
         "min_demand": 100,
     }
     sell_filter = multi_sell_filter(
-        commodities=list(cargo.keys()),
-        **sell_filter_args
-    )
-    nearby = relevant_markets_near(system, sell_filter, radius=radius)
-    digested = digest_relevant_markets_near(nearby)
-    sales = [
-        {"sale": hypothetical_sale(cargo, n), "market": n}
-        for n in digested
-    ]
-    sales_sorted = sorted(
-        sales,
-        key=lambda x: x["sale"]["total"],
-        reverse=True
-    )
-    return sales_sorted
-
-
-bad = []
-
-
-def best_sell_stations_celery(cargo, location, sell_filter_args=None, radius=30):
-    sell_filter_args = sell_filter_args or {
-        "min_price": 200000,
-        "min_demand": 100,
-    }
-    sell_filter = multi_sell_filter(
-        commodities=list(cargo.keys()),
-        **sell_filter_args
+        commodities=list(cargo.keys()), **sell_filter_args
     )
     market_request = market.request_near(
         location,
@@ -245,20 +196,21 @@ def best_sell_stations_celery(cargo, location, sell_filter_args=None, radius=30)
     )
     markets = []
     for system_name in market_request["system_names"]:
-        station_names_ = market.station_names_in_system_onlycache(system_name) or []
+        station_names_ = (
+            market.station_names_in_system_onlycache(system_name) or []
+        )
         for station_name in station_names_:
-            if market_ := market.market_in_station_onlycache(system_name, station_name):
+            if market_ := market.market_in_station_onlycache(
+                system_name, station_name
+            ):
                 markets.append(market_)
     filtered = filter_markets(markets, commodity_filter=sell_filter)
     digested = digest_relevant_markets_near(filtered)
     sales = [
-        {"sale": hypothetical_sale(cargo, n), "market": n}
-        for n in digested
+        {"sale": hypothetical_sale(cargo, n), "market": n} for n in digested
     ]
     sales_sorted = sorted(
-        sales,
-        key=lambda x: x["sale"]["total"],
-        reverse=True
+        sales, key=lambda x: x["sale"]["total"], reverse=True
     )
     return sales_sorted
 
@@ -288,12 +240,17 @@ def pretty_print_sales(sales):
 def main():
     """Entry point."""
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-P", "--pretty", action="store_true")
     parser.add_argument("-s", "--system", required=True)
     parser.add_argument("-r", "--radius", type=int, default=30)
-    parser.add_argument("-d", "--demand", "--min-demand", type=int, default=100)
-    parser.add_argument("-p", "--price", "--min-price", type=int, default=100000)
+    parser.add_argument(
+        "-d", "--demand", "--min-demand", type=int, default=100
+    )
+    parser.add_argument(
+        "-p", "--price", "--min-price", type=int, default=100000
+    )
     parser.add_argument(
         "cargo",
         type=argparse.FileType("r"),

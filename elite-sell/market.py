@@ -1,31 +1,20 @@
 #!/usr/bin/env python
 
 
-import datetime
-import itertools
 import json
-import math
 import os
-import pickle
-import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
-from pprint import pprint
 
 import redis
 import requests
-from cytoolz import groupby
-from cytoolz import mapcat
-from cytoolz import merge
-from cytoolz import partial
-from cytoolz import partition_all
-from cytoolz import sliding_window
-from cytoolz import dissoc
-from diskcache import Cache
-from retrying import retry
 from celery.result import AsyncResult
+from cytoolz import dissoc
+from cytoolz import groupby
+from cytoolz import partition_all
+from retrying import retry
 
 import tasks
 
@@ -33,7 +22,6 @@ UNSET = object()
 
 
 class DB:
-
     def __init__(self, db, namespace="default"):
         self.db = db
         self.namespace = namespace
@@ -61,7 +49,7 @@ class DB:
             value = json.loads(self.db.get(key))
             return {"ok": True, "value": value, "key": key}
         else:
-            return {"ok": False, "error": f"unpopulated", "key": key}
+            return {"ok": False, "error": "unpopulated", "key": key}
 
     def get(self, key, default=UNSET):
         result = self.peek(key)
@@ -86,6 +74,7 @@ class DB:
                 value = func(*args, **kwargs)
                 self.set(key, value)
                 return value
+
         return _wrapped
 
     def which(self, keys):
@@ -97,7 +86,6 @@ class DB:
 
 
 class RedisDB:
-
     @classmethod
     def from_environment(cls, variable="DB_URL", namespace="default"):
         url = os.environ.get(variable, "redis://localhost:6379/0")
@@ -122,10 +110,9 @@ def _get_with_http(url, params):
     print(f"GET {url} ({params})...")
     r = requests.get(url, params=params)
     rate_limit = int(r.headers.get("X-Rate-Limit-Limit", 720))
-    rate_remain = int(r.headers.get("X-Rate-Limit-Remaining", 720))
     rate_reset = int(r.headers.get("X-Rate-Limit-Reset", 0))
     retry_after = int(r.headers.get("Retry-After", 0))
-    request_interval = rate_reset/rate_limit
+    request_interval = rate_reset / rate_limit
     request_preroll = 50
     if r.status_code == 429:
         print(f"Rate-limited: {r.headers}")
@@ -148,7 +135,7 @@ def _get_raw(url, params):
     return _get_with_http(url, params).json()
 
 
-def _location_raw(name, api_key):
+def location_raw(name, api_key):
     return _get_raw(
         "https://www.edsm.net/api-logs-v1/get-position",
         params={
@@ -158,7 +145,7 @@ def _location_raw(name, api_key):
     )
 
 
-def _cargo_raw(name, api_key):
+def cargo_raw(name, api_key):
     return _get_raw(
         "https://www.edm.net/api-commander-v1/get-materials",
         params={
@@ -182,17 +169,6 @@ def systems_in_sphere_raw(current_system, radius=50, min_radius=0):
             "showCoordinates": 1,
         },
     )
-
-
-def equal_volume_shells(r):
-    yield (0, r)
-    r1 = r
-    r0 = 0
-    while True:
-        r2 = (2 * r1**3 - r0**3)**(1/3)
-        yield (r1, r2)
-        r0 = r1
-        r1 = r2
 
 
 def stations_in_system_raw(system):
@@ -231,11 +207,6 @@ def market_in_station_onlycache(system_name, station_name):
     return market_db.get(key, default=None)
 
 
-def log(x):
-    pprint(x)
-    return x
-
-
 def markets_in_system(system):
     disallowed_types = [
         "Odyssey Settlement",
@@ -262,15 +233,6 @@ def markets_in_system(system):
 def invalidate(system_name, station_name):
     market_db.invalidate((system_name, station_name))
     market_db.set(("dirty", system_name), True)
-
-
-def _which_bin(system, shells):
-    return next(
-        i
-        for (i, (r0, r1))
-        in enumerate(shells)
-        if r0 <= system["distance"] <= r1
-    )
 
 
 def request_near(location, initial_radius=15, max_radius=50):
@@ -305,7 +267,11 @@ def request_near(location, initial_radius=15, max_radius=50):
         "systems": systems,
         "system_names": system_names,
         "tasks": {
-            task.id: {"task_id": task.id, "shell": i, "systems": systems_batched}
+            task.id: {
+                "task_id": task.id,
+                "shell": i,
+                "systems": systems_batched,
+            }
             for ((i, task), systems_batched) in zip(tasks_, task_systems)
         },
     }
@@ -317,15 +283,14 @@ def request_near(location, initial_radius=15, max_radius=50):
 
 def request_status(request_id):
     request = request_db.get(request_id)
-    
+
     def _dirty(system):
         return market_db.get(("dirty", system["name"]), default=None)
 
     dirty = groupby(_dirty, request["systems"])
     system_completion = {
         (
-            "Partial" if k is True else
-            "Complete" if k is False else "Pending"
+            "Partial" if k is True else "Complete" if k is False else "Pending"
         ): len(v)
         for (k, v) in dirty.items()
     }
@@ -334,7 +299,8 @@ def request_status(request_id):
         return system_completion.get(status, 0)
 
     system_completion_percent = 100 * (
-        _compl("Complete") / (_compl("Complete") + _compl("Partial") + _compl("Pending"))
+        _compl("Complete")
+        / (_compl("Complete") + _compl("Partial") + _compl("Pending"))
     )
 
     def _shell_status(item):

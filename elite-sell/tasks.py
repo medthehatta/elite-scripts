@@ -21,8 +21,7 @@ def best_sell_stations_task(cargo, system, min_price, min_demand, radius):
     result = best_sell_stations(
         cargo,
         system,
-        sell_filter_args={"min_price": min_price,
-        "min_demand": min_demand},
+        sell_filter_args={"min_price": min_price, "min_demand": min_demand},
         radius=radius,
     )
     end = time.time()
