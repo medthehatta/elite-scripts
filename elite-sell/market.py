@@ -114,7 +114,7 @@ class RedisDB:
 
 station_db = RedisDB.from_environment("DB_URL", namespace="stations")
 market_db = RedisDB.from_environment("DB_URL", namespace="markets")
-request_db = RedisDB.from_environment("DB_URL", namespace="requests")
+scan_db = RedisDB.from_environment("DB_URL", namespace="requests")
 
 
 @retry(stop_max_attempt_number=3)
@@ -251,7 +251,7 @@ def invalidate(system_name, station_name):
 
 
 def request_near(location, radius=50):
-    request_id = str(uuid.uuid1())
+    scan_id = str(uuid.uuid1())
     systems = systems_in_sphere_raw(location, radius=radius)
     system_names = [system["name"] for system in systems]
 
@@ -275,7 +275,7 @@ def request_near(location, radius=50):
     ]
 
     request = {
-        "request_id": request_id,
+        "scan_id": scan_id,
         "location": location,
         "radius": radius,
         "system_names": system_names,
@@ -289,13 +289,13 @@ def request_near(location, radius=50):
         },
     }
 
-    request_db.set(request_id, request)
+    scan_db.set(scan_id, request)
 
     return request
 
 
-def request_status(request_id):
-    request = request_db.get(request_id)
+def request_status(scan_id):
+    request = scan_db.get(scan_id)
 
     def _dirty(system_name):
         return market_db.get(("dirty", system_name), default=None)
@@ -324,7 +324,7 @@ def request_status(request_id):
     shell_completion = groupby(_shell_status, request["tasks"].values())
 
     return {
-        "request_id": request["request_id"],
+        "scan_id": request["scan_id"],
         "location": request["location"],
         "radius": request["radius"],
         "system_names": request["system_names"],
@@ -537,8 +537,6 @@ def best_sell_stations(
 
 
 class SellStationRequest(BaseModel):
-    location: str = None
-    radius: float = 40.0
     min_price: int = 100000
     min_demand: int = 1
     cargo: Dict[str, int]
@@ -552,13 +550,15 @@ def _():
 
 
 @app.post("/sales")
-def _sales(payload: SellStationRequest, scan_id: str = ""):
+def _sales(scan_id: str, payload: SellStationRequest):
     """
     Given a cargo loadout (and some filter parameters), find the likely best
     place to sell your cargo near a given system.
 
-    If you've already started a scan, you can provide the scan_id as a query
-    parameter instead of providing the location and radius in the request body.
+    The location information is provided by passing a scan_id as a query
+    parameter.  Get a scan_id by starting a scan for markets near a given
+    system with the /scan endpoint.  You can reuse the scan_id to get updated
+    sale suggestions are more markets are scanned.
     """
     if scan_id:
         req = request_status(scan_id)
@@ -572,7 +572,7 @@ def _sales(payload: SellStationRequest, scan_id: str = ""):
                 ),
             )
         req1 = request_near(payload.location, radius=payload.radius)
-        req = request_status(req1["request_id"])
+        req = request_status(req1["scan_id"])
 
     best = best_sell_stations(
         req["system_names"],
