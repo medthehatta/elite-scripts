@@ -8,6 +8,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
+from typing import Dict
 
 import redis
 import requests
@@ -16,11 +17,19 @@ from cytoolz import dissoc
 from cytoolz import get_in
 from cytoolz import groupby
 from cytoolz import partition_all
+from fastapi import Body
+from fastapi import FastAPI
+from fastapi import Form
+from fastapi import Request
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 from retrying import retry
 
 from worker import celery_worker
 
 UNSET = object()
+
+app = FastAPI()
 
 
 class DB:
@@ -514,12 +523,10 @@ def hypothetical_sale(commodities, market):
     }
 
 
-def best_sell_stations(
-    cargo, location, sell_filter_args=None, radius=30
-):
-    sell_filter_args = sell_filter_args or {
-        "min_price": 200000,
-        "min_demand": 100,
+def best_sell_stations(cargo, location, min_price=1, min_demand=1, radius=30):
+    sell_filter_args = {
+        "min_price": min_price,
+        "min_demand": min_demand,
     }
     sell_filter = multi_sell_filter(
         commodities=list(cargo.keys()), **sell_filter_args
@@ -531,9 +538,7 @@ def best_sell_stations(
     )
     markets = []
     for system_name in market_request["system_names"]:
-        station_names_ = (
-            station_names_in_system_onlycache(system_name) or []
-        )
+        station_names_ = station_names_in_system_onlycache(system_name) or []
         for station_name in station_names_:
             if market_ := market_in_station_onlycache(
                 system_name, station_name
@@ -548,3 +553,16 @@ def best_sell_stations(
         sales, key=lambda x: x["sale"]["total"], reverse=True
     )
     return sales_sorted
+
+
+class SellStationRequest(BaseModel):
+    system: str
+    min_price: int = 100000
+    min_demand: int = 1
+    radius: int = 40
+    cargo: Dict[str, int]
+
+
+@app.get("/")
+def _():
+    return {"ok": True}

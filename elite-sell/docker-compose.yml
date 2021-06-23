@@ -12,7 +12,7 @@ services:
     build: .
     ports:
       - 8004:8000
-    command: uvicorn main:app --host 0.0.0.0 --reload
+    command: uvicorn market:app --host 0.0.0.0 --reload
     volumes:
       - .:/usr/src/app
     environment:
