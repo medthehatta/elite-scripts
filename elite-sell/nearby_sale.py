@@ -11,21 +11,11 @@ from math import ceil
 
 from cytoolz import get_in
 
-import edsm
 import market
 
 
 def without_false(seq):
     return (s for s in seq if s)
-
-
-def markets_near(location, radius=30):
-    systems = edsm.systems_in_sphere(location, radius)
-    return list(
-        without_false(
-            edsm.markets_in_system(system["name"]) for system in systems
-        )
-    )
 
 
 def filter_sell_commodity(name, min_demand=1000, min_price=100000):
@@ -65,11 +55,6 @@ def multi_sell_filter(min_demand=1000, min_price=100000, commodities=None):
         return list(without_false(cf(market) for cf in all_filters))
 
     return _multi_sell_filter
-
-
-def log(x):
-    pprint(x)
-    return x
 
 
 def filter_markets(markets, commodity_filter):
