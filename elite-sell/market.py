@@ -274,15 +274,14 @@ def request_near(location, radius=50):
         "request_id": request_id,
         "location": location,
         "radius": radius,
-        "systems": systems,
         "system_names": system_names,
         "tasks": {
             task.id: {
                 "task_id": task.id,
                 "shell": i,
-                "systems": systems_batched,
+                "system_names": [system["name"] for system in batch],
             }
-            for ((i, task), systems_batched) in zip(tasks_, task_systems)
+            for ((i, task), batch) in zip(tasks_, task_systems)
         },
     }
 
@@ -294,10 +293,10 @@ def request_near(location, radius=50):
 def request_status(request_id):
     request = request_db.get(request_id)
 
-    def _dirty(system):
-        return market_db.get(("dirty", system["name"]), default=None)
+    def _dirty(system_name):
+        return market_db.get(("dirty", system_name), default=None)
 
-    dirty = groupby(_dirty, request["systems"])
+    dirty = groupby(_dirty, request["system_names"])
     system_completion = {
         (
             "Partial" if k is True else "Complete" if k is False else "Pending"
@@ -305,12 +304,14 @@ def request_status(request_id):
         for (k, v) in dirty.items()
     }
 
-    def _compl(status):
-        return system_completion.get(status, 0)
+    num_systems = len(request["system_names"])
+    partial_or_pending = (
+        system_completion.get("Partial", 0) +
+        system_completion.get("Pending", 0)
+    )
 
     system_completion_percent = 100 * (
-        _compl("Complete")
-        / (_compl("Complete") + _compl("Partial") + _compl("Pending"))
+        (num_systems - partial_or_pending) / num_systems
     )
 
     def _shell_status(item):
@@ -322,7 +323,6 @@ def request_status(request_id):
         "request_id": request["request_id"],
         "location": request["location"],
         "radius": request["radius"],
-        "systems": request["systems"],
         "system_names": request["system_names"],
         "system_completion": system_completion,
         "system_completion_percent": system_completion_percent,
@@ -499,7 +499,13 @@ def hypothetical_sale(commodities, market):
     }
 
 
-def best_sell_stations(system_names, cargo, min_price=1, min_demand=1):
+def best_sell_stations(
+    system_names,
+    cargo,
+    min_price=1,
+    min_demand=1,
+    topk=20,
+):
     sell_filter_args = {
         "min_price": min_price,
         "min_demand": min_demand,
@@ -523,7 +529,7 @@ def best_sell_stations(system_names, cargo, min_price=1, min_demand=1):
     sales_sorted = sorted(
         sales, key=lambda x: x["sale"]["total"], reverse=True
     )
-    return sales_sorted
+    return sales_sorted[:topk]
 
 
 class SellStationRequest(BaseModel):
@@ -532,6 +538,7 @@ class SellStationRequest(BaseModel):
     min_price: int = 100000
     min_demand: int = 1
     cargo: Dict[str, int]
+    topk: int = 20
 
 
 @app.get("/")
@@ -554,13 +561,15 @@ def _sales(payload: SellStationRequest, scan_id: str = ""):
     if scan_id:
         req = request_status(scan_id)
     else:
-        req = request_near(payload.location, radius=payload.radius)
+        req1 = request_near(payload.location, radius=payload.radius)
+        req = request_status(req1["request_id"])
 
     best = best_sell_stations(
         req["system_names"],
         payload.cargo,
         min_price=payload.min_price,
         min_demand=payload.min_demand,
+        topk=payload.topk,
     )
 
     return {"scan": req, "best": best}
