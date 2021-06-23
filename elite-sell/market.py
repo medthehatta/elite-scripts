@@ -543,7 +543,7 @@ class SellStationRequest(BaseModel):
 
 @app.get("/")
 def _():
-    return {"ok": True}
+    return {"ok": True, "api_docs": "/docs"}
 
 
 @app.post("/scan")
