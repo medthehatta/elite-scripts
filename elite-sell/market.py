@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 
+import datetime
 import json
 import os
 import time
@@ -12,11 +13,12 @@ import redis
 import requests
 from celery.result import AsyncResult
 from cytoolz import dissoc
+from cytoolz import get_in
 from cytoolz import groupby
 from cytoolz import partition_all
 from retrying import retry
 
-import tasks
+from worker import celery_worker
 
 UNSET = object()
 
@@ -255,7 +257,7 @@ def request_near(location, initial_radius=15, max_radius=50):
     task_systems = list(partition_all(10, need_update_names))
 
     tasks_ = [
-        (i, tasks.populate_markets.delay(batch))
+        (i, populate_markets.delay(batch))
         for (i, batch) in enumerate(task_systems)
     ]
 
@@ -320,3 +322,229 @@ def request_status(request_id):
         "tasks": shell_completion,
         "unfinished_shells": dissoc(shell_completion, "SUCCESS"),
     }
+
+
+@celery_worker.task
+def best_sell_stations_task(cargo, system, min_price, min_demand, radius):
+    start = time.time()
+    result = best_sell_stations(
+        cargo,
+        system,
+        sell_filter_args={"min_price": min_price, "min_demand": min_demand},
+        radius=radius,
+    )
+    end = time.time()
+    duration = end - start
+    return {
+        "ok": True,
+        "timing": {
+            "start": start,
+            "end": end,
+            "elapsed": duration,
+        },
+        "result": result,
+    }
+
+
+@celery_worker.task
+def populate_markets(systems):
+    start = time.time()
+    with ThreadPoolExecutor(max_workers=4) as exe:
+        result = list(exe.map(markets_in_system, systems))
+    end = time.time()
+    duration = end - start
+    return {
+        "ok": True,
+        "timing": {
+            "start": start,
+            "end": end,
+            "elapsed": duration,
+        },
+        "result": result,
+    }
+
+
+def without_false(seq):
+    return (s for s in seq if s)
+
+
+def filter_sell_commodity(name, min_demand=1000, min_price=100000):
+    def _filter_sell_commodity(market):
+        commodities = get_in(
+            ["market", "commodities"],
+            market,
+            default=None,
+        )
+        commodities = commodities or []
+        return next(
+            (
+                c
+                for c in commodities
+                if c["name"].lower() == name.lower()
+                and c["demand"] >= min_demand
+                and c["sellPrice"] >= min_price
+            ),
+            None,
+        )
+
+    return _filter_sell_commodity
+
+
+def multi_sell_filter(min_demand=1000, min_price=100000, commodities=None):
+    commodities = commodities or []
+    all_filters = [
+        filter_sell_commodity(
+            name,
+            min_demand=min_demand,
+            min_price=min_price,
+        )
+        for name in commodities
+    ]
+
+    def _multi_sell_filter(market):
+        return list(without_false(cf(market) for cf in all_filters))
+
+    return _multi_sell_filter
+
+
+def filter_markets(markets, commodity_filter):
+    results = []
+    for mkt in markets:
+        station = mkt["station"]
+        system = mkt["system"]
+        # or [] because this could return None instead
+        # of omitting the commodities
+        all_commodities = (
+            get_in(["market", "commodities"], mkt, default=None) or []
+        )
+        relevant_commodities = commodity_filter(mkt)
+        if relevant_commodities:
+            results.append(
+                {
+                    "system": system,
+                    "station": station,
+                    "commodities": all_commodities,
+                    "relevant": relevant_commodities,
+                }
+            )
+    return log(results)
+
+
+def time_since(timestr):
+    tm = datetime.datetime.strptime(timestr + " Z", "%Y-%m-%d %H:%M:%S %z")
+    delta = datetime.datetime.now().astimezone() - tm
+    return delta
+
+
+def readable_time_since(delta):
+    days = delta.days
+    hours = delta.seconds // 3600
+    minutes = (delta.seconds - 3600 * hours) // 60
+    return f"{days}d {hours}h {minutes}m"
+
+
+def digest_relevant_markets_near(relevant):
+    return [
+        {
+            "system": r["system"]["name"],
+            "jump_distance": r["system"]["distance"],
+            "station": r["station"]["name"],
+            "supercruise_distance": r["station"]["distanceToArrival"],
+            "relevant": [
+                {
+                    "name": c["name"],
+                    "sellPrice": c["sellPrice"],
+                    "demand": c["demand"],
+                }
+                for c in r["relevant"]
+            ],
+            "updated": {
+                "when": r["station"]["updateTime"]["market"],
+                "elapsed": readable_time_since(
+                    time_since(
+                        r["station"]["updateTime"]["market"],
+                    ),
+                ),
+                "seconds_ago": time_since(
+                    r["station"]["updateTime"]["market"],
+                ).total_seconds(),
+            },
+        }
+        for r in relevant
+    ]
+
+
+def cascading_lookup(paths, data):
+    NOT_FOUND = object()
+    for path in paths:
+        result = get_in(path, data, default=NOT_FOUND)
+        if result is not NOT_FOUND:
+            return result
+    else:
+        return None
+
+
+def hypothetical_sale(commodities, market):
+    mkt_commodities = cascading_lookup(
+        [
+            ["relevant"],
+            ["station", "market", "commodities"],
+            ["market", "commodities"],
+            ["commodities"],
+            [],
+        ],
+        market,
+    )
+    mkt = {c["name"]: c for c in mkt_commodities}
+    matches = [
+        {
+            "name": name,
+            "sellPrice": mkt[name]["sellPrice"],
+            "revenue": mkt[name]["sellPrice"] * quantity,
+        }
+        for (name, quantity) in commodities.items()
+        if name in mkt
+    ]
+    return {
+        "total": sum(m["revenue"] for m in matches),
+        "matched": matches,
+        "missing": [
+            name for (name, quantity) in commodities.items() if name not in mkt
+        ],
+    }
+
+
+def best_sell_stations(
+    cargo, location, sell_filter_args=None, radius=30
+):
+    sell_filter_args = sell_filter_args or {
+        "min_price": 200000,
+        "min_demand": 100,
+    }
+    sell_filter = multi_sell_filter(
+        commodities=list(cargo.keys()), **sell_filter_args
+    )
+    market_request = request_near(
+        location,
+        initial_radius=15,
+        max_radius=radius,
+    )
+    markets = []
+    for system_name in market_request["system_names"]:
+        station_names_ = (
+            station_names_in_system_onlycache(system_name) or []
+        )
+        for station_name in station_names_:
+            if market_ := market_in_station_onlycache(
+                system_name, station_name
+            ):
+                markets.append(market_)
+    filtered = filter_markets(markets, commodity_filter=sell_filter)
+    digested = digest_relevant_markets_near(filtered)
+    sales = [
+        {"sale": hypothetical_sale(cargo, n), "market": n} for n in digested
+    ]
+    sales_sorted = sorted(
+        sales, key=lambda x: x["sale"]["total"], reverse=True
+    )
+    return sales_sorted
