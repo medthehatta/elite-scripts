@@ -74,12 +74,14 @@ def filter_markets(markets, commodity_filter):
     results = []
     for mkt in markets:
         station = mkt["station"]
+        system = mkt["system"]
         # or [] because this could return None instead of omitting the commodities
         all_commodities = get_in(["market", "commodities"], mkt, default=None) or []
         relevant_commodities = commodity_filter(mkt)
         if relevant_commodities:
             results.append(
                 {
+                    "system": system,
                     "station": station,
                     "commodities": all_commodities,
                     "relevant": relevant_commodities,
@@ -243,9 +245,7 @@ def best_sell_stations_celery(cargo, location, sell_filter_args=None, radius=30)
     )
     markets = []
     for system_name in market_request["system_names"]:
-        print(f"{system=}")
         station_names_ = market.station_names_in_system_onlycache(system_name) or []
-        print(f"{stations_=}")
         for station_name in station_names_:
             if market_ := market.market_in_station_onlycache(system_name, station_name):
                 markets.append(market_)
