@@ -235,6 +235,7 @@ def markets_in_system(system):
             raw = market_in_station_raw(system["name"], station["name"])
             result = {"market": raw, "station": station, "system": system}
             market_db.set(key, result)
+            market_db.set(("dirty", system["name"]), False)
         return market_db.get((system["name"], station["name"]))
 
     with ThreadPoolExecutor(max_workers=6) as exe:
