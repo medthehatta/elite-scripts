@@ -20,6 +20,7 @@ from cytoolz import partition_all
 from fastapi import Body
 from fastapi import FastAPI
 from fastapi import Form
+from fastapi import HTTPException
 from fastapi import Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -536,7 +537,7 @@ def best_sell_stations(
 
 
 class SellStationRequest(BaseModel):
-    location: str
+    location: str = None
     radius: float = 40.0
     min_price: int = 100000
     min_demand: int = 1
@@ -546,24 +547,42 @@ class SellStationRequest(BaseModel):
 
 @app.get("/")
 def _():
+    """API index, just has a welcome message."""
     return {"ok": True, "api_docs": "/docs"}
 
 
 @app.post("/scan")
 def _new(location: str, radius: float = 40.0):
+    """Start scanning markets near a location."""
     return request_near(location, radius=radius)
 
 
 @app.get("/scan/{scan_id}")
 def _check(scan_id: str):
+    """Check the status of a scan."""
     return request_status(scan_id)
 
 
 @app.post("/sales")
 def _sales(payload: SellStationRequest, scan_id: str = ""):
+    """
+    Given a cargo loadout (and some filter parameters), find the likely best
+    place to sell your cargo near a given system.
+
+    If you've already started a scan, you can provide the scan_id as a query
+    parameter instead of providing the location and radius in the request body.
+    """
     if scan_id:
         req = request_status(scan_id)
     else:
+        if payload.location is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Must provide scan_id query parameter or "
+                    "location in the request body"
+                ),
+            )
         req1 = request_near(payload.location, radius=payload.radius)
         req = request_status(req1["request_id"])
 
