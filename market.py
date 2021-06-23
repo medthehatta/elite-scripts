@@ -261,15 +261,21 @@ def request_near(location, initial_radius=15, max_radius=50):
     system_names = [system["name"] for system in systems]
 
     def _dirty(system):
-        return market_db.get(("dirty", system), default=None)
+        return market_db.get(("dirty", system["name"]), default=None)
 
-    dirty = groupby(_dirty, system_names)
-
-    # ...
+    dirty = groupby(_dirty, systems)
 
     need_update = dirty.get(True, []) + dirty.get(None, [])
 
-    task_systems = list(partition_all(10, need_update))
+    need_update_names = [
+        system["name"]
+        for system in sorted(
+            need_update,
+            key=lambda x: x["distance"],
+        )
+    ]
+
+    task_systems = list(partition_all(10, need_update_names))
 
     tasks_ = [
         (i, tasks.populate_markets.delay(names))
