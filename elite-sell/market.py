@@ -386,7 +386,6 @@ def digest_relevant_markets_near(relevant):
                     r["station"]["updateTime"]["market"],
                 ).total_seconds(),
             },
-            "market": r["market"],
         }
         for r in relevant
     ]
@@ -413,6 +412,11 @@ def hypothetical_sale(commodities, market):
     }
 
 
+def log(x):
+    print(x)
+    return x
+
+
 def filter_markets(
     markets,
     desired_commodities,
@@ -421,6 +425,9 @@ def filter_markets(
     max_update_seconds=24*3600,
 ):
     result = []
+    if not markets:
+        return []
+
     for market in markets:
         commodities1 = (
             get_in(["market", "commodities"], market, default=None) or []
@@ -428,21 +435,18 @@ def filter_markets(
 
         commodities = [
             c for c in commodities1
-            if c in desired_commodities
+            if c["name"] in desired_commodities
         ]
 
-        price_ok = any(
-            c["name"].lower() == name.lower() and c["sellPrice"] >= price
+        price_demand_ok = any(
+            (
+                c["name"] in desired_commodities and
+                c["sellPrice"] >= min_price and
+                c["demand"] >= min_demand
+            )
             for c in commodities
         )
-        if not price_ok:
-            continue
-
-        demand_ok = any(
-            c["name"].lower() == name.lower() and c["demand"] >= demand
-            for c in commodities
-        )
-        if not demand_ok:
+        if not price_demand_ok:
             continue
 
         market_update = get_in(
@@ -453,7 +457,7 @@ def filter_markets(
         if market_update is None:
             continue
         delta = time_since(market_update)
-        update_ok = delta.total_seconds() < seconds
+        update_ok = delta.total_seconds() < max_update_seconds
         if not update_ok:
             continue
 
