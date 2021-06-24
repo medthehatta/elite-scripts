@@ -11,8 +11,6 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 from pprint import pprint
 import datetime
-import market as mkt
-import nearby_sale
 
 
 def without_false(seq):
@@ -280,23 +278,9 @@ def mining_sell_filter(**kwargs):
 test_haul = {"Alexandrite": 12, "Serendibite": 15, "Monazite": 8}
 
 
-def get_deep_market(entry):
-    lookups = [
-        ["market"]*n
-        for n in reversed(range(0, 11))
-    ]
-    return cascading_lookup(lookups, entry)
-
-
-def do_sale(system, radius=30):
-    try:
-        result = nearby_sale.best_sell_stations_celery(
-            {"Alexandrite": 12},
-            system,
-            sell_filter_args={"min_price": 100000, "min_demand": 100},
-            radius=radius,
-        )
-    except Exception:
-        result = None
-    d = groupby(lambda x: x[0], nearby_sale.bad)
-    return (result, d)
+def sample_endpoint(func, *args, **kwargs):
+    name = func.__name__
+    result = func(*args, **kwargs)
+    with open(f"sample-{name}.json", "w") as f:
+        json.dump(result, f)
+    return name

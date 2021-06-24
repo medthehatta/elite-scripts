@@ -13,6 +13,7 @@ from typing import Dict
 import redis
 import requests
 from celery.result import AsyncResult
+from cytoolz import curry
 from cytoolz import dissoc
 from cytoolz import get_in
 from cytoolz import groupby
@@ -327,9 +328,9 @@ def request_status(scan_id):
         "scan_id": request["scan_id"],
         "location": request["location"],
         "radius": request["radius"],
-        "system_names": request["system_names"],
-        "system_completion": system_completion,
         "system_completion_percent": system_completion_percent,
+        "system_completion": system_completion,
+        "system_names": request["system_names"],
         "tasks": shell_completion,
         "unfinished_shells": dissoc(shell_completion, "SUCCESS"),
     }
@@ -353,72 +354,6 @@ def populate_markets(systems):
     }
 
 
-def without_false(seq):
-    return (s for s in seq if s)
-
-
-def filter_sell_commodity(name, min_demand=1000, min_price=100000):
-    def _filter_sell_commodity(market):
-        commodities = get_in(
-            ["market", "commodities"],
-            market,
-            default=None,
-        )
-        commodities = commodities or []
-        return next(
-            (
-                c
-                for c in commodities
-                if c["name"].lower() == name.lower()
-                and c["demand"] >= min_demand
-                and c["sellPrice"] >= min_price
-            ),
-            None,
-        )
-
-    return _filter_sell_commodity
-
-
-def multi_sell_filter(min_demand=1000, min_price=100000, commodities=None):
-    commodities = commodities or []
-    all_filters = [
-        filter_sell_commodity(
-            name,
-            min_demand=min_demand,
-            min_price=min_price,
-        )
-        for name in commodities
-    ]
-
-    def _multi_sell_filter(market):
-        return list(without_false(cf(market) for cf in all_filters))
-
-    return _multi_sell_filter
-
-
-def filter_markets(markets, commodity_filter):
-    results = []
-    for mkt in markets:
-        station = mkt["station"]
-        system = mkt["system"]
-        # or [] because this could return None instead
-        # of omitting the commodities
-        all_commodities = (
-            get_in(["market", "commodities"], mkt, default=None) or []
-        )
-        relevant_commodities = commodity_filter(mkt)
-        if relevant_commodities:
-            results.append(
-                {
-                    "system": system,
-                    "station": station,
-                    "commodities": all_commodities,
-                    "relevant": relevant_commodities,
-                }
-            )
-    return results
-
-
 def time_since(timestr):
     tm = datetime.datetime.strptime(timestr + " Z", "%Y-%m-%d %H:%M:%S %z")
     delta = datetime.datetime.now().astimezone() - tm
@@ -439,14 +374,7 @@ def digest_relevant_markets_near(relevant):
             "jump_distance": r["system"]["distance"],
             "station": r["station"]["name"],
             "supercruise_distance": r["station"]["distanceToArrival"],
-            "relevant": [
-                {
-                    "name": c["name"],
-                    "sellPrice": c["sellPrice"],
-                    "demand": c["demand"],
-                }
-                for c in r["relevant"]
-            ],
+            "type": r["station"]["type"],
             "updated": {
                 "when": r["station"]["updateTime"]["market"],
                 "elapsed": readable_time_since(
@@ -458,32 +386,14 @@ def digest_relevant_markets_near(relevant):
                     r["station"]["updateTime"]["market"],
                 ).total_seconds(),
             },
+            "market": r["market"],
         }
         for r in relevant
     ]
 
 
-def cascading_lookup(paths, data):
-    NOT_FOUND = object()
-    for path in paths:
-        result = get_in(path, data, default=NOT_FOUND)
-        if result is not NOT_FOUND:
-            return result
-    else:
-        return None
-
-
 def hypothetical_sale(commodities, market):
-    mkt_commodities = cascading_lookup(
-        [
-            ["relevant"],
-            ["station", "market", "commodities"],
-            ["market", "commodities"],
-            ["commodities"],
-            [],
-        ],
-        market,
-    )
+    mkt_commodities = get_in(["market", "commodities"], market, default=[])
     mkt = {c["name"]: c for c in mkt_commodities}
     matches = [
         {
@@ -503,20 +413,66 @@ def hypothetical_sale(commodities, market):
     }
 
 
+def filter_markets(
+    markets,
+    desired_commodities,
+    min_price=1,
+    min_demand=1,
+    max_update_seconds=24*3600,
+):
+    result = []
+    for market in markets:
+        commodities1 = (
+            get_in(["market", "commodities"], market, default=None) or []
+        )
+
+        commodities = [
+            c for c in commodities1
+            if c in desired_commodities
+        ]
+
+        price_ok = any(
+            c["name"].lower() == name.lower() and c["sellPrice"] >= price
+            for c in commodities
+        )
+        if not price_ok:
+            continue
+
+        demand_ok = any(
+            c["name"].lower() == name.lower() and c["demand"] >= demand
+            for c in commodities
+        )
+        if not demand_ok:
+            continue
+
+        market_update = get_in(
+            ["station", "updateTime", "market"],
+            market,
+            default=None,
+        )
+        if market_update is None:
+            continue
+        delta = time_since(market_update)
+        update_ok = delta.total_seconds() < seconds
+        if not update_ok:
+            continue
+
+        # otherwise
+        result.append(market)
+
+    return result
+
+
 def best_sell_stations(
     system_names,
     cargo,
     min_price=1,
     min_demand=1,
+    max_update_seconds=24*3600,
     topk=20,
 ):
-    sell_filter_args = {
-        "min_price": min_price,
-        "min_demand": min_demand,
-    }
-    sell_filter = multi_sell_filter(
-        commodities=list(cargo.keys()), **sell_filter_args
-    )
+    commodities = list(cargo.keys())
+
     markets = []
     for system_name in system_names:
         station_names_ = station_names_in_system_onlycache(system_name) or []
@@ -525,13 +481,22 @@ def best_sell_stations(
                 system_name, station_name
             ):
                 markets.append(market_)
-    filtered = filter_markets(markets, commodity_filter=sell_filter)
+
+    filtered = filter_markets(
+        markets,
+        commodities,
+        min_price=min_price,
+        min_demand=min_demand,
+        max_update_seconds=max_update_seconds,
+    )
+    sales = [hypothetical_sale(cargo, n) for n in filtered]
     digested = digest_relevant_markets_near(filtered)
-    sales = [
-        {"sale": hypothetical_sale(cargo, n), "market": n} for n in digested
+    pre_sort = [
+        {"sale": sale, "market": digest}
+        for (sale, digest) in zip(sales, digested)
     ]
     sales_sorted = sorted(
-        sales, key=lambda x: x["sale"]["total"], reverse=True
+        pre_sort, key=lambda x: x["sale"]["total"], reverse=True
     )
     return sales_sorted[:topk]
 
@@ -539,6 +504,9 @@ def best_sell_stations(
 class SellStationRequest(BaseModel):
     min_price: int = 100000
     min_demand: int = 1
+    not_planetary: bool = False
+    large_station: bool = False
+    max_update_seconds: int = -1
     cargo: Dict[str, int]
     topk: int = 20
 
@@ -582,7 +550,7 @@ def _sales(scan_id: str, payload: SellStationRequest):
         topk=payload.topk,
     )
 
-    return {"scan": req, "best": best}
+    return {"best": best, "scan": req}
 
 
 @app.post("/scan")
