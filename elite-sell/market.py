@@ -543,7 +543,7 @@ def _sales(scan_id: str, payload: SellStationRequest):
                     "location in the request body"
                 ),
             )
-        req1 = request_near(payload.location, radius=payload.radius)
+        req1 = request_near(payload.location, radius=30)
         req = request_status(req1["scan_id"])
 
     best = best_sell_stations(
@@ -554,7 +554,15 @@ def _sales(scan_id: str, payload: SellStationRequest):
         topk=payload.topk,
     )
 
-    return {"best": best, "scan": req}
+    scan_return = {
+        "scan_id": req["scan_id"],
+        "location": req["location"],
+        "radius": req["radius"],
+        "system_completion_percent": req["system_completion_percent"],
+        "system_completion": req["system_completion"],
+    }
+
+    return {"best": best, "scan": scan_return}
 
 
 @app.post("/scan")
