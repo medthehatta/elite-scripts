@@ -16,6 +16,16 @@ timeoutEDDN = 600000
 """
 
 
+def trace(data):
+    print(json.dumps(data))
+    sys.stdout.flush()
+
+
+callbacks = [
+    trace,
+]
+
+
 def main():
     context = zmq.Context()
     subscriber = context.socket(zmq.SUB)
@@ -35,10 +45,8 @@ def main():
                     break
 
                 json_ = json.loads(zlib.decompress(message))
-
-                # call dumps() to ensure double quotes in output
-                print(json.dumps(json_))
-                sys.stdout.flush()
+                for callback in callbacks:
+                    callback(json_)
 
         except zmq.ZMQError as e:
             print("ZMQSocketException: " + str(e))
