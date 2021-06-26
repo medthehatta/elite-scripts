@@ -506,6 +506,8 @@ def best_sell_stations(
 
 
 class SellStationRequest(BaseModel):
+    system: str
+    radius: float = 30.0
     min_price: int = 100000
     min_demand: int = 1
     not_planetary: bool = False
