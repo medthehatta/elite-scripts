@@ -1,0 +1,36 @@
+version: '2'
+
+services:
+  mongodb:
+    image: mongo:latest
+    ports:
+      - 27017:27017
+    volumes:
+      - ./mongo:/data/db
+    networks:
+      - external
+
+  eddn:
+    build: .
+    command: bash -c 'while true; do python eddn_listener.py; done'
+    depends_on:
+      - mongodb
+    networks:
+      - external
+    environment:
+      MONGO_URL: "mongodb://mongodb:27017/"
+
+  edsm_dumps:
+    build: .
+    command: bash -c 'while true; do python station_dump.py; done'
+    depends_on:
+      - mongodb
+    networks:
+      - external
+    environment:
+      MONGO_URL: "mongodb://mongodb:27017/"
+
+
+networks:
+  external:
+    external: true

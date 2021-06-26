@@ -1,0 +1,8 @@
+beautifulsoup4
+cytoolz
+fastapi
+requests
+uvicorn
+pyzmq
+pymongo
+lxml
