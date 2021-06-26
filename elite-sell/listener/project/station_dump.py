@@ -14,14 +14,7 @@ from pymongo import MongoClient
 import requests
 
 from conversion import from_edsm
-
-
-mongo_url = os.environ.get("MONGO_URL", default="mongodb://localhost:27017/")
-mongo = MongoClient(mongo_url)
-market_db = mongo.marketdb.market
-dump_meta_db = mongo.dumpmetadb.dumps
-station_db = mongo.stationdb.station
-commodity_db = mongo.commoditydb.names
+import db
 
 
 def save_to_mongo(data):
@@ -34,7 +27,7 @@ def save_to_mongo(data):
     sc_distance = converted["sc_distance"]
     commodities = converted["commodities"]
     for commodity in commodities:
-        commodity_db.update_one(
+        db.commodity.update_one(
             {"name": commodity["name"]},
             {
                 "$set": {
@@ -47,7 +40,7 @@ def save_to_mongo(data):
         # We don't want this in the DB, EDDN does not have this key and we want
         # the DB entries to have identical fields
         commodity.pop("readable")
-    station_db.update_one(
+    db.station.update_one(
         {
             "system": system,
             "station": station,
@@ -63,7 +56,7 @@ def save_to_mongo(data):
         },
         upsert=True,
     )
-    market_db.update_one(
+    db.market.update_one(
         {
             "system": system,
             "station": station,
@@ -134,11 +127,11 @@ def main():
         page = fetch_dump_page()
         meta = process_soup(page)
         url = meta["url"]
-        prev_meta = dump_meta_db.find_one({"url": url}) or {"url": None, "updated": None}
+        prev_meta = db.dump_meta.find_one({"url": url}) or {"url": None, "updated": None}
         if prev_meta.get("updated") != meta["updated"]:
             print(f"{prev_meta.get('updated')=} != {meta['updated']=}, loading!")
             stream_zipped_from_url(url)
-            dump_meta_db.update_one(
+            db.dump_meta.update_one(
                 {"url": url},
                 {"$set": {"url": url, "updated": meta["updated"]}},
                 upsert=True,

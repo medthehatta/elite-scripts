@@ -11,15 +11,11 @@ import os
 from pymongo import MongoClient
 
 from conversion import from_eddn
+import db
 
 
 relayEDDN = "tcp://eddn.edcd.io:9500"
 timeoutEDDN = 600000
-
-mongo_url = os.environ.get("MONGO_URL", default="mongodb://localhost:27017/")
-mongo = MongoClient(mongo_url)
-market_db = mongo.marketdb.market
-
 
 def save_to_mongo(data):
     if data["$schemaRef"] != "https://eddn.edcd.io/schemas/commodity/3":
@@ -30,7 +26,7 @@ def save_to_mongo(data):
     station = converted["station"]
     update_time = converted["update_time"]
     commodities = converted["commodities"]
-    market_db.update_one(
+    db.market.update_one(
         {"system": system, "station": station},
         {
             "$set": {
