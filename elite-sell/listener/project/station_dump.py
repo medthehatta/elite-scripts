@@ -20,6 +20,8 @@ mongo_url = os.environ.get("MONGO_URL", default="mongodb://localhost:27017/")
 mongo = MongoClient(mongo_url)
 market_db = mongo.marketdb.market
 dump_meta_db = mongo.dumpmetadb.dumps
+station_db = mongo.stationdb.station
+commodity_db = mongo.commoditydb.names
 
 
 def save_to_mongo(data):
@@ -28,7 +30,39 @@ def save_to_mongo(data):
     system = converted["system"]
     station = converted["station"]
     update_time = converted["update_time"]
+    type_ = converted["type"]
+    sc_distance = converted["sc_distance"]
     commodities = converted["commodities"]
+    for commodity in commodities:
+        commodity_db.update_one(
+            {"name": commodity["name"]},
+            {
+                "$set": {
+                    "name": commodity["name"],
+                    "readable": commodity["readable"],
+                },
+            },
+            upsert=True,
+        )
+        # We don't want this in the DB, EDDN does not have this key and we want
+        # the DB entries to have identical fields
+        commodity.pop("readable")
+    station_db.update_one(
+        {
+            "system": system,
+            "station": station,
+        },
+        {
+            "$set": {
+                "system": system,
+                "station": station,
+                "type": type_,
+                "sc_distance": sc_distance,
+                "source": "edsm-dump",
+            },
+        },
+        upsert=True,
+    )
     market_db.update_one(
         {
             "system": system,
@@ -42,7 +76,7 @@ def save_to_mongo(data):
                 "station": station,
                 "update_time": update_time,
                 "commodities": commodities,
-                "source": "edsm",
+                "source": "edsm-dump",
             },
         },
         upsert=True,

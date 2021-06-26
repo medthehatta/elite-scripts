@@ -49,6 +49,8 @@ def from_edsm(entry):
     system = g(["systemName"])
     station = g(["name"])
     update_time_raw = g(["updateTime", "market"])
+    type_ = g(["type"]) or "Unknown"
+    sc_dist = g(["distanceToArrival"]) or 0
 
     # This happens if there's no market
     if update_time_raw is None:
@@ -57,6 +59,8 @@ def from_edsm(entry):
             "station": station,
             "market": market_id,
             "update_time": None,
+            "type": type_,
+            "sc_distance": sc_dist,
             "commodities": [],
         }
 
@@ -75,6 +79,7 @@ def from_edsm(entry):
             "buyPrice": com["buyPrice"],
             "stock": com["stock"],
             "demand": com["demand"],
+            "readable": com["name"],
         }
         for com in g(["commodities"])
     ]
@@ -84,5 +89,7 @@ def from_edsm(entry):
         "station": station,
         "market": market_id,
         "update_time": update_time,
+        "type": type_,
+        "sc_distance": sc_dist,
         "commodities": commodities,
     }
