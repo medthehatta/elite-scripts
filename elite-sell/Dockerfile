@@ -1,6 +1,8 @@
 # pull official base image
 FROM python:3.9.5
 
+RUN apt-get update -y && apt-get install -y jq
+
 # set work directory
 WORKDIR /usr/src/app
 
