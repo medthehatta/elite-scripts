@@ -141,14 +141,6 @@ def systems_in_sphere(location, radius=30):
     return systems_in_sphere_raw(location, radius=radius)
 
 
-def readable_time_since(dtime):
-    delta = datetime.datetime.now().astimezone() - dtime
-    days = delta.days
-    hours = delta.seconds // 3600
-    minutes = (delta.seconds - 3600 * hours) // 60
-    return f"{days}d {hours}h {minutes}m"
-
-
 def _format_market(systems, market):
     market_data = db.strip_id(
         db.market.find_one(
@@ -188,7 +180,9 @@ def _format_market(systems, market):
             "station": market_data["station"],
             "sc_distance": sc_distance,
             "type": type_,
-            "updated": readable_time_since(market_data["update_time"]),
+            "updated": readable_time_since(
+                time_since(market_data["update_time"])
+            ),
             "source": market_data["source"],
         }
     except KeyError:
