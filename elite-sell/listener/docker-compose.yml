@@ -10,6 +10,24 @@ services:
     networks:
       - external
 
+  api:
+    build: .
+    ports:
+      - 8004:8000
+    command: uvicorn main:app --host 0.0.0.0 --reload
+    volumes:
+      - .:/usr/src/app
+    environment:
+      - MONGO_URL="mongodb://mongodb:27017/"
+    depends_on:
+      - mongodb
+    networks:
+      - external
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`elite-sell.mancer.in`)"
+      - "traefik.http.routers.whoami.entrypoints=websecure"
+
   eddn:
     build: .
     command: bash -c 'while true; do python eddn_listener.py; done'
@@ -18,7 +36,7 @@ services:
     networks:
       - external
     environment:
-      MONGO_URL: "mongodb://mongodb:27017/"
+      - MONGO_URL="mongodb://mongodb:27017/"
 
   edsm_dumps:
     build: .
@@ -28,7 +46,7 @@ services:
     networks:
       - external
     environment:
-      MONGO_URL: "mongodb://mongodb:27017/"
+      - MONGO_URL="mongodb://mongodb:27017/"
 
 
 networks:
