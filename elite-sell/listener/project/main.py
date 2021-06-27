@@ -54,7 +54,7 @@ def hypothetical_sale(cargo, market):
 
     return {
         "total": sum(m["revenue"] for m in matches),
-        "matched": matches,
+        "matched": sorted(matches, key=lambda x: x["sellPrice"], reverse=True),
         "missing": [
             name for (name, quantity) in cargo.items()
             if name not in by_name
