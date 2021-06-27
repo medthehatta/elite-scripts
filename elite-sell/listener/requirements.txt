@@ -1,9 +1,10 @@
 beautifulsoup4
 cytoolz
+diskcache
 fastapi
-requests
-uvicorn
-pyzmq
-pymongo
 lxml
+pymongo
+pyzmq
+requests
 retrying
+uvicorn
