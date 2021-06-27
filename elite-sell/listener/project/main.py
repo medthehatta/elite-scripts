@@ -3,6 +3,7 @@
 
 import datetime
 from typing import Dict
+from typing import List
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -83,6 +84,7 @@ def filter_market(
     min_price=1,
     min_demand=1,
     max_update_seconds=24*3600,
+    disallowed_types=None,
 ):
     commodities1 = market.get("commodities", [])
 
@@ -106,6 +108,21 @@ def filter_market(
     update_ok = delta.total_seconds() < max_update_seconds
     if not update_ok:
         return None
+
+    if disallowed_types:
+        station_data = db.strip_id(
+            db.station.find_one(
+                {
+                    "system": market["system"],
+                    "station": market["station"],
+                },
+            )
+        )
+        if station_data is None:
+            return None
+
+        if station_data["type"] in disallowed_types:
+            return None
 
     # Made it through the gauntlet of conditions
     return market
@@ -182,6 +199,7 @@ def best_sell_stations(
     min_demand=1,
     max_update_seconds=24*3600,
     topk=20,
+    disallowed_types=None,
 ):
     cargo = {
         _translate_commodity(k): v
@@ -201,6 +219,7 @@ def best_sell_stations(
         min_price=min_price,
         min_demand=min_demand,
         max_update_seconds=max_update_seconds,
+        disallowed_types=disallowed_types,
     )
     sales = [hypothetical_sale(cargo, n) for n in filtered]
     pre_sort = [
@@ -224,6 +243,7 @@ class SellStationRequest(BaseModel):
     min_price: int = 100000
     min_demand: int = 1
     max_update_seconds: int = 1e8
+    omit_station_types: List[str] = ["Fleet Carrier", "Odyssey Settlement"]
     cargo: Dict[str, int]
     topk: int = 20
 
@@ -244,5 +264,6 @@ def _sales(request: SellStationRequest):
         min_demand=request.min_demand,
         max_update_seconds=request.max_update_seconds,
         topk=request.topk,
+        disallowed_types=request.omit_station_types,
     )
     return best
