@@ -11,6 +11,7 @@ edsm_cache = Cache("edsm-cache")
 
 
 mongo_url = os.environ.get("MONGO_URL", default="mongodb://localhost:27017/")
+print(f"Using mongo at: {mongo_url}")
 mongo = MongoClient(mongo_url)
 
 dump_meta = mongo.dumpmetadb.dumps

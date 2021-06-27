@@ -1,7 +1,7 @@
 version: '2'
 
 services:
-  mongodb:
+  mongo:
     image: mongo:latest
     ports:
       - 27017:27017
@@ -18,9 +18,9 @@ services:
     volumes:
       - .:/usr/src/app
     environment:
-      - MONGO_URL="mongodb://mongodb:27017/"
+      - MONGO_URL=mongodb://mongo:27017/
     depends_on:
-      - mongodb
+      - mongo
     networks:
       - external
     labels:
@@ -32,21 +32,21 @@ services:
     build: .
     command: bash -c 'while true; do python eddn_listener.py; done'
     depends_on:
-      - mongodb
+      - mongo
     networks:
       - external
     environment:
-      - MONGO_URL="mongodb://mongodb:27017/"
+      - MONGO_URL=mongodb://mongo:27017/
 
   edsm_dumps:
     build: .
     command: bash -c 'while true; do python station_dump.py; done'
     depends_on:
-      - mongodb
+      - mongo
     networks:
       - external
     environment:
-      - MONGO_URL="mongodb://mongodb:27017/"
+      - MONGO_URL=mongodb://mongo:27017/
 
 
 networks:

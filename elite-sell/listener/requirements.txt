@@ -3,7 +3,7 @@ cytoolz
 diskcache
 fastapi
 lxml
-pymongo
+pymongo>=3.6
 pyzmq
 requests
 retrying
