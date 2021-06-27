@@ -187,7 +187,7 @@ def _():
     return {"ok": True, "api_docs": "/docs"}
 
 
-@app.get("/sales")
+@app.post("/sales")
 def _sales(request: SellStationRequest):
     return best_sell_stations(
         request.system,
