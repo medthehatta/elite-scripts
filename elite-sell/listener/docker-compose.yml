@@ -14,7 +14,7 @@ services:
     build: .
     ports:
       - 8004:8000
-    command: uvicorn main:app --host 0.0.0.0 --reload
+    command: uvicorn main:app --app-dir project --host 0.0.0.0 --reload
     volumes:
       - .:/usr/src/app
     environment:
