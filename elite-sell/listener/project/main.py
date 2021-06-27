@@ -11,6 +11,8 @@ from cytoolz import topk as get_topk
 
 import db
 from edsm import systems_in_sphere_raw
+from edsm import location_raw
+from edsm import cargo_raw
 
 
 app = FastAPI()
@@ -239,6 +241,19 @@ def best_sell_stations(
     return sales_sorted
 
 
+def commander_info(name, api_key):
+    location = location_raw(name, api_key)
+    cargo_ = cargo_raw(name, api_key)
+    system = location["system"]
+    station = location["station"]
+    cargo = {c["name"]: c["qty"] for c in cargo_["cargo"] if c["qty"]}
+    return {
+        "system": system,
+        "station": station,
+        "cargo": cargo,
+    }
+
+
 class SellStationRequest(BaseModel):
     system: str
     radius: float = 30.0
@@ -247,6 +262,17 @@ class SellStationRequest(BaseModel):
     max_update_seconds: int = 1e8
     omit_station_types: List[str] = ["Fleet Carrier", "Odyssey Settlement"]
     cargo: Dict[str, int]
+    topk: int = 20
+
+
+class SellForMeStationRequest(BaseModel):
+    commander: str
+    api_key: str
+    radius: float = 30.0
+    min_price: int = 100000
+    min_demand: int = 1
+    max_update_seconds: int = 1e8
+    omit_station_types: List[str] = ["Fleet Carrier", "Odyssey Settlement"]
     topk: int = 20
 
 
@@ -261,6 +287,24 @@ def _sales(request: SellStationRequest):
     best = best_sell_stations(
         request.system,
         request.cargo,
+        radius=request.radius,
+        min_price=request.min_price,
+        min_demand=request.min_demand,
+        max_update_seconds=request.max_update_seconds,
+        topk=request.topk,
+        disallowed_types=request.omit_station_types,
+    )
+    return best
+
+
+@app.post("/sales_for_me")
+def _sales_for_me(request: SellForMeStationRequest):
+    data = commander_info(request.commander, request.api_key)
+    system = data["system"]
+    cargo = data["cargo"]
+    best = best_sell_stations(
+        system,
+        cargo,
         radius=request.radius,
         min_price=request.min_price,
         min_demand=request.min_demand,

@@ -46,7 +46,7 @@ def location_raw(name, api_key):
 
 def cargo_raw(name, api_key):
     return _get_raw(
-        "https://www.edm.net/api-commander-v1/get-materials",
+        "https://www.edsm.net/api-commander-v1/get-materials",
         params={
             "commanderName": name,
             "apiKey": api_key,
