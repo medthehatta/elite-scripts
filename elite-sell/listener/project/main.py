@@ -6,6 +6,7 @@ from typing import Dict
 
 from fastapi import FastAPI
 from pydantic import BaseModel
+from cytoolz import topk as get_topk
 
 import db
 from edsm import systems_in_sphere_raw
@@ -162,10 +163,12 @@ def best_sell_stations(
         }
         for (sale, mkt) in zip(sales, filtered)
     ]
-    sales_sorted = sorted(
-        pre_sort, key=lambda x: x["sale"]["total"], reverse=True
+    sales_sorted = get_topk(
+        topk,
+        pre_sort,
+        key=lambda x: x["sale"]["total"],
     )
-    return sales_sorted[:topk]
+    return sales_sorted
 
 
 class SellStationRequest(BaseModel):
@@ -173,6 +176,7 @@ class SellStationRequest(BaseModel):
     radius: float = 30.0
     min_price: int = 100000
     min_demand: int = 1
+    max_update_seconds: int = 1e8
     cargo: Dict[str, int]
     topk: int = 20
 
@@ -181,3 +185,16 @@ class SellStationRequest(BaseModel):
 def _():
     """API index, just has a welcome message."""
     return {"ok": True, "api_docs": "/docs"}
+
+
+@app.get("/sales")
+def _sales(request: SellStationRequest):
+    return best_sell_stations(
+        request.system,
+        request.cargo,
+        radius=request.radius,
+        min_price=request.min_price,
+        min_demand=request.min_demand,
+        max_update_seconds=request.max_update_seconds,
+        topk=request.topk,
+    )
