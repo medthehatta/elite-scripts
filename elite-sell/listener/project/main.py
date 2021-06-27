@@ -48,6 +48,7 @@ def hypothetical_sale(cargo, market):
             matches.append({
                 "name": name,
                 "sellPrice": by_name[name]["sellPrice"],
+                "demand": by_name[name]["demand"],
                 "quantity": quantity,
                 "revenue": by_name[name]["sellPrice"] * quantity,
             })
