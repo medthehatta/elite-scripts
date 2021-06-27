@@ -246,11 +246,9 @@ def commander_info(name, api_key):
     location = location_raw(name, api_key)
     cargo_ = cargo_raw(name, api_key)
     system = location["system"]
-    station = location["station"]
     cargo = {c["name"]: c["qty"] for c in cargo_["cargo"] if c["qty"]}
     return {
         "system": system,
-        "station": station,
         "cargo": cargo,
     }
 
