@@ -255,24 +255,15 @@ def commander_info(name, api_key):
 
 
 class SellStationRequest(BaseModel):
-    system: str
+    commander: str = None
+    api_key: str = None
+    system: str = None
     radius: float = 30.0
     min_price: int = 100000
     min_demand: int = 1
     max_update_seconds: int = 1e8
     omit_station_types: List[str] = ["Fleet Carrier", "Odyssey Settlement"]
-    cargo: Dict[str, int]
-    topk: int = 20
-
-
-class SellForMeStationRequest(BaseModel):
-    commander: str
-    api_key: str
-    radius: float = 30.0
-    min_price: int = 100000
-    min_demand: int = 1
-    max_update_seconds: int = 1e8
-    omit_station_types: List[str] = ["Fleet Carrier", "Odyssey Settlement"]
+    cargo: Dict[str, int] = None
     topk: int = 20
 
 
@@ -284,24 +275,14 @@ def _():
 
 @app.post("/sales")
 def _sales(request: SellStationRequest):
-    best = best_sell_stations(
-        request.system,
-        request.cargo,
-        radius=request.radius,
-        min_price=request.min_price,
-        min_demand=request.min_demand,
-        max_update_seconds=request.max_update_seconds,
-        topk=request.topk,
-        disallowed_types=request.omit_station_types,
-    )
-    return best
+    if request.system and request.cargo:
+        system = request.system
+        cargo = request.cargo
+    else:
+        data = commander_info(request.commander, request.api_key)
+        system = request.system or data["system"]
+        cargo = request.cargo or data["cargo"]
 
-
-@app.post("/sales_for_me")
-def _sales_for_me(request: SellForMeStationRequest):
-    data = commander_info(request.commander, request.api_key)
-    system = data["system"]
-    cargo = data["cargo"]
     best = best_sell_stations(
         system,
         cargo,
