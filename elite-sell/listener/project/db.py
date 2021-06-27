@@ -3,6 +3,7 @@
 
 import os
 
+from cytoolz import dissoc
 from diskcache import Cache
 from pymongo import MongoClient
 
@@ -18,3 +19,10 @@ dump_meta = mongo.dumpmetadb.dumps
 market = mongo.elite.market
 station = mongo.elite.station
 commodity = mongo.elite.commodities
+
+
+def strip_id(result):
+    if result is not None:
+        return dissoc(result, "_id")
+    else:
+        return None

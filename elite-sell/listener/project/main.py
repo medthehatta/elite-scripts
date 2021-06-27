@@ -155,10 +155,12 @@ def best_sell_stations(
     pre_sort = [
         {
             "sale": sale,
-            "market": db.station.find_one({
-                "system": mkt["system"],
-                "station": mkt["station"],
-            }),
+            "market": db.strip_id(
+                db.station.find_one({
+                    "system": mkt["system"],
+                    "station": mkt["station"],
+                })
+            ),
             "updated": mkt["update_time"],
         }
         for (sale, mkt) in zip(sales, filtered)
@@ -189,7 +191,7 @@ def _():
 
 @app.post("/sales")
 def _sales(request: SellStationRequest):
-    return best_sell_stations(
+    best = best_sell_stations(
         request.system,
         request.cargo,
         radius=request.radius,
@@ -198,3 +200,4 @@ def _sales(request: SellStationRequest):
         max_update_seconds=request.max_update_seconds,
         topk=request.topk,
     )
+    return best
