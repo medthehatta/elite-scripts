@@ -6,6 +6,8 @@ import os
 from cytoolz import dissoc
 from diskcache import Cache
 from pymongo import MongoClient
+from pymongo import ASCENDING
+from pymongo import DESCENDING
 
 
 edsm_cache = Cache("edsm-cache")
@@ -26,3 +28,14 @@ def strip_id(result):
         return dissoc(result, "_id")
     else:
         return None
+
+
+def build_indices():
+    if not dump_meta.find_one({"operation": "index"}):
+        market.create_index([("system", DESCENDING)])
+        market.create_index([("system", DESCENDING), ("station", DESCENDING)])
+        station.create_index([("system", DESCENDING), ("station", DESCENDING)])
+        dump_meta.insert_one({"operation": "index"})
+
+
+build_indices()
