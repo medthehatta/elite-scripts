@@ -136,7 +136,7 @@ def _translate_commodity(readable):
     if entry:
         return entry["name"]
     else:
-        raise LookupError(readable)
+        return readable
 
 
 @db.edsm_cache.memoize()
