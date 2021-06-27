@@ -1,0 +1,22 @@
+{
+    "commander": "mahimahimed",
+    "api_key": "redacted",
+    "radius": 70,
+    "min_price": 10000,
+    "min_demand": 100,
+    "max_update_seconds": 432000,
+    "cargo": {
+        "Osmium": 1,
+        "Platinum": 1,
+        "Painite": 1,
+        "Palladium": 1,
+        "Gold": 1,
+        "Silver": 1,
+        "Samarium": 1,
+        "Bertrandite": 1,
+        "Gallite": 1,
+        "Indite": 1,
+        "Praseodymium": 1
+    },
+    "topk": 15
+}
