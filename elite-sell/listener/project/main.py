@@ -3,12 +3,15 @@
 
 import datetime
 from typing import Dict
-from concurrent.futures import ThreadPoolExecutor
 
+from fastapi import FastAPI
 from pydantic import BaseModel
 
 import db
 from edsm import systems_in_sphere_raw
+
+
+app = FastAPI()
 
 
 def without_none(seq):
@@ -107,7 +110,6 @@ def filter_market(
     return market
 
 
-@db.edsm_cache.memoize()
 def _translate_commodity(readable):
     entry = db.commodity.find_one({"readable": readable})
     if entry:
@@ -171,14 +173,11 @@ class SellStationRequest(BaseModel):
     radius: float = 30.0
     min_price: int = 100000
     min_demand: int = 1
-    not_planetary: bool = False
-    large_station: bool = False
-    max_update_seconds: int = -1
     cargo: Dict[str, int]
     topk: int = 20
 
 
-#@app.get("/")
-#def _():
-#    """API index, just has a welcome message."""
-#    return {"ok": True, "api_docs": "/docs"}
+@app.get("/")
+def _():
+    """API index, just has a welcome message."""
+    return {"ok": True, "api_docs": "/docs"}
