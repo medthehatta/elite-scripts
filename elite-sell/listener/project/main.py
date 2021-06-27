@@ -124,6 +124,56 @@ def systems_in_sphere(location, radius=30):
     return systems_in_sphere_raw(location, radius=radius)
 
 
+def _format_market(systems, market):
+    market_data = db.strip_id(
+        db.market.find_one(
+            {
+                "system": market["system"],
+                "station": market["station"],
+            },
+        )
+    )
+    if market_data is None:
+        return {
+            "system": market["system"],
+            "station": market["station"],
+            "source": "NO DATA",
+        }
+
+    station_data = db.strip_id(
+        db.station.find_one(
+            {
+                "system": market["system"],
+                "station": market["station"],
+            },
+        )
+    )
+    if station_data is None:
+        type_ = "NO DATA"
+        sc_distance = "NO DATA"
+    else:
+        type_ = station_data["type"]
+        sc_distance = station_data["sc_distance"]
+
+    system = systems[market["system"]]
+    try:
+        return {
+            "system": system["name"],
+            "jump_distance": system["distance"],
+            "station": market_data["station"],
+            "sc_distance": sc_distance,
+            "type": type_,
+            "updated": market_data["update_time"],
+            "source": market_data["source"],
+        }
+    except KeyError:
+        return {
+            "system": system["name"],
+            "station": market_data["station"],
+            "source": "ERROR READING DB ENTRY",
+        }
+
+
 def best_sell_stations(
     system,
     cargo,
@@ -141,6 +191,7 @@ def best_sell_stations(
 
     markets = []
     systems = systems_in_sphere(system, radius=radius)
+    system_data = {system["name"]: system for system in systems}
     for system in systems:
         markets.extend(list(db.market.find({"system": system["name"]})))
 
@@ -155,13 +206,7 @@ def best_sell_stations(
     pre_sort = [
         {
             "sale": sale,
-            "market": db.strip_id(
-                db.station.find_one({
-                    "system": mkt["system"],
-                    "station": mkt["station"],
-                })
-            ),
-            "updated": mkt["update_time"],
+            "market": _format_market(system_data, mkt),
         }
         for (sale, mkt) in zip(sales, filtered)
     ]
