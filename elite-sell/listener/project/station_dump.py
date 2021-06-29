@@ -110,7 +110,7 @@ def process_soup(soup):
     return result
 
 
-def stream_zipped_from_url(url):
+def read_zipped_from_url(url):
     cmd = (
         f"curl '{url}' | "
         f"zcat - | "
@@ -119,7 +119,7 @@ def stream_zipped_from_url(url):
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
     for line in p.stdout:
         json_ = json.loads(line)
-        save_to_mongo(json_)
+        yield json_
 
 
 def main():
@@ -130,7 +130,8 @@ def main():
         prev_meta = db.dump_meta.find_one({"url": url}) or {"url": None, "updated": None}
         if prev_meta.get("updated") != meta["updated"]:
             print(f"{prev_meta.get('updated')=} != {meta['updated']=}, loading!")
-            stream_zipped_from_url(url)
+            for item in read_zipped_from_url(url):
+                save_to_mongo(item)
             db.dump_meta.update_one(
                 {"url": url},
                 {"$set": {"url": url, "updated": meta["updated"]}},
