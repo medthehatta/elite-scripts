@@ -51,8 +51,20 @@ def from_edsm(entry):
     update_time_raw = g(["updateTime", "market"])
     type_ = g(["type"]) or "Unknown"
     sc_dist = g(["distanceToArrival"]) or 0
+    commodities_raw = g(["commodities"]) or []
 
-    # This happens if there's no market
+    commodities = [
+        {
+            "name": com["id"],
+            "sellPrice": com["sellPrice"],
+            "buyPrice": com["buyPrice"],
+            "stock": com["stock"],
+            "demand": com["demand"],
+            "readable": com["name"],
+        }
+        for com in commodities_raw
+    ]
+
     if update_time_raw is None:
         return {
             "system": system,
@@ -72,17 +84,6 @@ def from_edsm(entry):
         "%Y-%m-%d %H:%M:%S %z",
     )
     update_time = update_time_dt.isoformat()
-    commodities = [
-        {
-            "name": com["id"],
-            "sellPrice": com["sellPrice"],
-            "buyPrice": com["buyPrice"],
-            "stock": com["stock"],
-            "demand": com["demand"],
-            "readable": com["name"],
-        }
-        for com in g(["commodities"])
-    ]
 
     return {
         "system": system,
