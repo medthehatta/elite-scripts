@@ -2,12 +2,14 @@
 
 
 import datetime
+import itertools
 from typing import Dict
 from typing import List
 
 from fastapi import FastAPI
 from pydantic import BaseModel
 from cytoolz import topk as get_topk
+from cytoolz import partition_all
 
 import db
 from edsm import systems_in_sphere_raw
@@ -212,11 +214,14 @@ def best_sell_stations(
     }
     commodities = list(cargo.keys())
 
-    markets = []
     systems = systems_in_sphere(system, radius=radius)
     system_data = {system["name"]: system for system in systems}
-    for system in systems:
-        markets.extend(list(db.market.find({"system": system["name"]})))
+
+    batch_size = 100
+    markets = itertools.chain.from_iterable(
+        db.market.find({"system": {"$in": system_batch}})
+        for system_batch in partition_all(batch_size, systems)
+    )
 
     filtered = filter_markets(
         markets,
