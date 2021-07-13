@@ -111,20 +111,24 @@ def process_soup(soup):
     return result
 
 
+def stream_zipped_from_file(path):
+    cmd2 = (
+        f"zcat {path} | "
+        f"jq -nc --stream 'fromstream(1|truncate_stream(inputs))'"
+    )
+    p2 = subprocess.Popen(cmd2, stdout=subprocess.PIPE, shell=True)
+    for line in p2.stdout:
+        json_ = json.loads(line)
+        yield json_
+
+
 def read_zipped_from_url(url):
     with tempfile.NamedTemporaryFile() as f:
         subprocess.check_call(["curl", url, "-o", f.name])
-        cmd2 = (
-            f"zcat {f.name} | "
-            f"jq -nc --stream 'fromstream(1|truncate_stream(inputs))'"
-        )
-        p2 = subprocess.Popen(cmd2, stdout=subprocess.PIPE, shell=True)
-        for line in p2.stdout:
-            json_ = json.loads(line)
-            yield json_
+        yield from stream_zipped_from_file(f.name)
 
 
-def main():
+def loop():
     while True:
         page = fetch_dump_page()
         meta = process_soup(page)
@@ -146,6 +150,17 @@ def main():
             print(f"No update found, no need to load.")
         time.sleep(1800)
 
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--read-file")
+    parsed = parser.parse_args()
+    if parsed.read_file:
+        for item in stream_zipped_from_file(parsed.read_file):
+            save_to_mongo(item)
+    else:
+        loop()
 
 if __name__ == "__main__":
     main()
