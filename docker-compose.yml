@@ -7,8 +7,6 @@ services:
       - 27017:27017
     volumes:
       - ./mongo:/data/db
-    networks:
-      - external
 
   api:
     build: .
@@ -21,8 +19,6 @@ services:
       - MONGO_URL=mongodb://mongo:27017/
     depends_on:
       - mongo
-    networks:
-      - external
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.whoami.rule=Host(`elite-sell.mancer.in`)"
@@ -33,8 +29,6 @@ services:
     command: bash -c 'while true; do python eddn_listener.py; done'
     depends_on:
       - mongo
-    networks:
-      - external
     environment:
       - MONGO_URL=mongodb://mongo:27017/
 
@@ -43,12 +37,5 @@ services:
     command: bash -c 'while true; do python station_dump.py; done'
     depends_on:
       - mongo
-    networks:
-      - external
     environment:
       - MONGO_URL=mongodb://mongo:27017/
-
-
-networks:
-  external:
-    external: true
