@@ -38,6 +38,7 @@ services:
       - MONGO_URL=mongodb://mongo:27017/
     networks:
       - private
+      - exposed
 
   edsm_dumps:
     build: .
