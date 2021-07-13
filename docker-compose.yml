@@ -4,7 +4,7 @@ services:
   mongo:
     image: mongo:latest
     ports:
-      - 27017:27017
+      - 27017
     volumes:
       - ./mongo:/data/db
     networks:
@@ -13,7 +13,7 @@ services:
   api:
     build: .
     ports:
-      - 8004:8000
+      - 8000
     command: uvicorn main:app --app-dir project --host 0.0.0.0 --reload
     volumes:
       - .:/usr/src/app
@@ -51,6 +51,7 @@ services:
 
 networks:
   private:
+    internal: true
   exposed:
     external: true
     name: external
