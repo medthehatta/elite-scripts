@@ -2,6 +2,6 @@
 prefix="$(dirname -- "$(readlink -f "$0")")"
 cd "$prefix"
 git stash
-git fetch origin master
+git fetch origin main
 git checkout FETCH_HEAD
 docker-compose up --build -d
