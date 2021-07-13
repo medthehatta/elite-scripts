@@ -74,13 +74,10 @@ def log(x, desc=None):
 
 
 def filter_markets(markets, desired, **kwargs):
-    if not markets:
-        return []
-    else:
-        def _filter_market(market):
-            return filter_market(market, desired, **kwargs)
+    def _filter_market(market):
+        return filter_market(market, desired, **kwargs)
 
-        return list(without_none(_filter_market(m) for m in markets))
+    return list(without_none(_filter_market(m) for m in markets))
 
 
 def filter_market(
@@ -215,12 +212,13 @@ def best_sell_stations(
     commodities = list(cargo.keys())
 
     systems = systems_in_sphere(system, radius=radius)
+    system_names = [system["name"] for system in systems]
     system_data = {system["name"]: system for system in systems}
 
     batch_size = 100
     markets = itertools.chain.from_iterable(
-        db.market.find({"system": {"$in": system_batch}})
-        for system_batch in partition_all(batch_size, systems)
+        db.market.find({"system": {"$in": system_name_batch}})
+        for system_name_batch in partition_all(batch_size, system_names)
     )
 
     filtered = filter_markets(
