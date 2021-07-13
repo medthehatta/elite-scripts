@@ -4,4 +4,4 @@ cd "$prefix"
 git stash
 git fetch origin main
 git checkout FETCH_HEAD
-docker-compose up --build -d
+docker-compose down && docker-compose up --build -d
