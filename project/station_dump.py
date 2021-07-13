@@ -8,6 +8,7 @@ from pprint import pprint
 import time
 import os
 import subprocess
+import tempfile
 
 from bs4 import BeautifulSoup
 from pymongo import MongoClient
@@ -111,15 +112,16 @@ def process_soup(soup):
 
 
 def read_zipped_from_url(url):
-    cmd = (
-        f"curl '{url}' | "
-        f"zcat - | "
-        f"jq -nc --stream 'fromstream(1|truncate_stream(inputs))'"
-    )
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
-    for line in p.stdout:
-        json_ = json.loads(line)
-        yield json_
+    with tempfile.NamedTemporaryFile() as f:
+        subprocess.check_call(["curl", url, "-o", f.name])
+        cmd2 = (
+            f"zcat {f.name} | "
+            f"jq -nc --stream 'fromstream(1|truncate_stream(inputs))'"
+        )
+        p2 = subprocess.Popen(cmd2, stdout=subprocess.PIPE, shell=True)
+        for line in p2.stdout:
+            json_ = json.loads(line)
+            yield json_
 
 
 def main():
